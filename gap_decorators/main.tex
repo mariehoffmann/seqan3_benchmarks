@@ -10,6 +10,9 @@
 \usepackage{graphicx}
 \usepackage{subcaption}
 \usepackage{bigfoot} % for verbatim in footnotes
+
+\graphicspath{{./plots/}}
+\renewcommand{\figurename}{Benchmark}
  
 \renewcommand{\thefootnote}{\fnsymbol{footnote}}
 % usage \footnote[num]{text}
@@ -83,26 +86,26 @@ Space&$\Theta \big ( (n+m)\cdot |$\verb|gapped<dna>|$|\big )$&$\Theta \big ( m(2
 
 
 \section{Benchmark Results}
-To create realistic gapped sequences or gaps for insertion, gap lengths are sampled from a histogram distribution published by Goonesekere et al. \footnote{see Table 1 in \url{https://www.ncbi.nlm.nih.gov/pmc/articles/PMC419611/}, columns were summed up and normalized} for each position, which results in a rather dense distribution of short gaps (40\%-45\% gap proportion). After sampling the \lq\lq gapped\rq\rq{} sequences were resized to have total sequence size of $2^i$. All four data structures are then initialized with the same gap vector within the same experiment. Each experiment is repeated 32 times for sequences with lengths in range $[2, 2^2, ..., 2^{15}]$, and 8 times for lengths in range $[2^{16}, ...,2^{18}]$.
+To create realistic gapped sequences or gaps for insertion, gap lengths are sampled from a histogram distribution published by Goonesekere et al. \footnote{see Table 1 in \url{https://www.ncbi.nlm.nih.gov/pmc/articles/PMC419611/}, columns were summed up and normalized} for each position, which results in a rather dense distribution of short gaps (40\%-45\% gap proportion). After sampling the \lq\lq gapped\rq\rq{} sequences were resized to have total sequence size of $2^i$. All four data structures are then initialized with the same gap vector within the same experiment. Each experiment is repeated 32 times for sequences with lengths in range $[2, 2^2, ..., 2^{15}]$, and 8 times for lengths in range $[2^{16}, ...,2^{18}]$. The benchmarks cover three user scenarios:
 \begin{description}
-    \item[Benchmark \#1] Read-only on ungapped or gapped sequence
-    \item[Benchmark \#2] Insert/Delete at {\bf random positions} into ungapped or gapped sequence
-    \item[Benchmark \#3] Insert/Delete from {\bf left to right} into ungapped or gapped sequence
+    \item[Benchmark 1] Read-only on ungapped or gapped sequence
+    \item[Benchmark 2] Insert/Delete at {\bf random positions} into ungapped or gapped sequence
+    \item[Benchmark 3] Insert/Delete from {\bf left to right} into ungapped or gapped sequence
 \end{description}
 
-\begin{figure}\centering
+\begin{figure}[htpb]\centering
 \includegraphics[scale=.4,trim={5cm 2cm 4.5cm 1.5cm},clip]{benchmark1_plot.png}
 \caption{Left: Read-only on ungapped sequence, i.e. gap structures are empty. Right: 
 Read-only on gapped sequence.}
 \end{figure}
 
-\begin{figure}\centering
+\begin{figure}[htpb]\centering
 \includegraphics[scale=.4,trim={5cm 2cm 4.5cm 1.5cm},clip]{benchmark2_plot.png}
 \caption{Left: Insert and delete at random positions into ungapped sequence. Right: 
 Insert and delete at random positions into gapped sequence.}
 \end{figure}
 
-\begin{figure}\centering
+\begin{figure}[htpb]\centering
 \includegraphics[scale=.4,trim={5cm 2cm 4.5cm 1.5cm},clip]{benchmark3_plot.png}
 \caption{Left: Insert and delete from left to right into an ungapped sequence. Right: 
 Insert and delete from left to right into a gapped sequence.}
@@ -111,9 +114,9 @@ Insert and delete from left to right into a gapped sequence.}
 \section{Summary}
 \subsection{Results}
 \begin{itemize}
-	\item The gapped sequence (\verb|gapped<dna15>|) always outperforms the other approaches, except when gaps are inserted from left to right into an empty sequence (see Benchmark \#3). In this case the Anchor List approach is always faster, and the Anchor Set approach when sequence lengths exceeds $2^{12}$.
+	\item The gapped sequence (\verb|gapped<dna15>|) always outperforms the other approaches, except when gaps are inserted from left to right into an empty sequence (see Benchmark 3). In this case the Anchor List approach is always faster, and the Anchor Set approach when sequence lengths exceeds $2^{12}$.
 	\item The Gap Vector (\verb|sdsl::sd_vector|) never outperforms the three other approaches, but should be considered to be provided in SeqAn3 when only read operations are performed and a transformation to a \verb|gapped| sequence is undesirable. 
-	\item When comparing anchor list versus anchor set for Benchmark \#1 the anchor set outperforms the anchor list for sequence lengths exceeding $2^{12}$. However, both approaches are outperformed by the gap vector. For Benchmark \#2 (insert/delete at random position) and Benchmark \#3 (insert/delete from left to right) the anchor list always outperforms the anchor set.    
+	\item When comparing anchor list versus anchor set for Benchmark 1 the anchor set outperforms the anchor list for sequence lengths exceeding $2^{12}$. However, both approaches are outperformed by the gap vector. For Benchmark 2 (insert/delete at random position) and Benchmark 3 (insert/delete from left to right) the anchor list always outperforms the anchor set.    
 \end{itemize}
 
 \subsection{Recommendations}
