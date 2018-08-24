@@ -39,7 +39,7 @@ void benchmark1(String binary_name, long long int REPEAT, short unsigned POW1, s
     // setup
     std::cout << "set up seq_length ...\n";
     std::vector<size_type> seq_lengths;
-    for (short unsigned int p = P1-1; p < P2; ++p) seq_lengths.push_back(1 << (p+1));
+    for (short unsigned int p = POW1-1; p < POW2; ++p) seq_lengths.push_back(1 << (p+1));
     std::vector<alphabet_type> seq;    // gap-free sequences for all 3 implementations
     std::vector<gapped<alphabet_type>> gs;          // gapped sequence
     
@@ -67,7 +67,7 @@ void benchmark1(String binary_name, long long int REPEAT, short unsigned POW1, s
             
             //fill vector with A
             if (LOG_LEVEL_<[benchmark]>) std::cout << "start filling sequence ...\n";
-            std::fill(seq.begin(), seq.end(), <[letter_A>]);
+            std::fill(seq.begin(), seq.end(), <[letter_A]>);
             if (LOG_LEVEL_<[benchmark]>) std::cout << "done filling.\n";
             
             if (LOG_LEVEL_<[benchmark]>) std::cout << "init seq length is : " << seq.size() << std::endl;
@@ -91,7 +91,7 @@ void benchmark1(String binary_name, long long int REPEAT, short unsigned POW1, s
                     if (gaps[i] > 0)
                     {
                         if (LOG_LEVEL_<[benchmark]>) std::cout << "insert gap (" << i << ", " << gaps[i] << ") into structure ...\n";
-                        gap_decorator.<[insert_gap]>(i, gaps[i]);
+                        gap_decorator.insert_gap(i, gaps[i]);
                         if (LOG_LEVEL_<[benchmark]>) print_sequence<anchor_set<std::vector<alphabet_type>>>(as);
                         
                         gap_acc += gaps[i];

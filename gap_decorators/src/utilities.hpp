@@ -97,8 +97,9 @@ time_type stddev(std::array<time_type, L> * durations, long int quantile)
     auto lambda = [avg_duration, offset](time_type acc, time_type t){return acc + ((t-avg_duration)/(L-1-2*offset)*(t-avg_duration)); };
     if (!std::is_sorted(durations->begin(), durations->end())) std::cout << "Error: durations are not sorted\n";
     time_type acc = 0;
-    
-    for (std::advance(it, offset), std::prev(it, offset); it < it_end; ++it)
+    auto it = durations.begin();
+    auto it_end = durations.end();
+    for (std::advance(it, offset), std::prev(it_end, offset); it < it_end; ++it)
     {
         acc = lambda(acc, *it);
         std::cout << "intermediate acc = " << acc << std::endl;

@@ -8,6 +8,7 @@
 \usepackage{algpseudocode}
 \usepackage{algorithm}
 \usepackage{graphicx}
+\usepackage{multirow}
 \usepackage{subcaption}
 \usepackage{bigfoot} % for verbatim in footnotes
 
@@ -74,19 +75,22 @@ Three gap decorator variations were benchmarked against each other and against a
 
 \begin{table}[htpb]\centering
 {\small
-\begin{tabular}{|l|l|l|l|l|}
+\begin{tabular}{|l|l|l|l|l|l|}
 \hline
-&\bf Gapped Sequence&\bf Gap Vector&\bf Anchor List&\bf Anchor Set\\
+\multicolumn{2}{|c}{}&\bf Gapped Sequence&\bf Gap Vector&\bf Anchor List&\bf Anchor Set\\
 \hline
-Space&$\Theta \big ( (n+m)\cdot |$\verb|gapped<dna>|$|\big )$&$\Theta \big ( m(2+\log \frac{n}{m}) + n\cdot|$\verb|dna|$|\big ) $&$\Theta (k + n\cdot |$\verb|dna|$|)$&$\Theta (k+ n\cdot |$\verb|dna|$|)$\\
+\multicolumn{2}{|l}{Theoretical Space}&$\Theta \big ( (n+m)\cdot |$\verb|gapped<dna>|$|\big )$&$\Theta \big ( m(2+\log \frac{n}{m}) + n\cdot|$\verb|dna|$|\big ) $&$\Theta (k + n\cdot |$\verb|dna|$|)$&$\Theta (k+ n\cdot |$\verb|dna|$|)$\\
 \hline
-\end{tabular}\caption{Theoretical space consumptions with $k$ = number of gaps, $m$ = accumulated gap length, $n$ = underlying (gap-free) sequence length including the unaligned sequence.}	
+\multirow{2}{*}{Actual Space}&\verb|dna15|&&&&\\
+&\verb|dna4|&&&&\\ 
+\hline
+\end{tabular}\caption{Theoretical and actual space consumptions with $k$ = number of gaps, $m$ = accumulated gap length, $n$ = underlying (gap-free) sequence length including the unaligned sequence. The actual space consumption was measured with valgrind's massif.}	
 }
 \end{table}
 
 
 \section{Benchmark Results}
-To create realistic gapped sequences or gaps for insertion, gap lengths are sampled from a histogram distribution published by Goonesekere et al. \footnote{see Table 1 in \url{https://www.ncbi.nlm.nih.gov/pmc/articles/PMC419611/}, columns were summed up and normalized} for each position, which results in a rather dense distribution of short gaps (40\%-45\% gap proportion). After sampling the \lq\lq gapped\rq\rq{} sequences were resized to have total sequence size of $2^i$. All four data structures are then initialized with the same gap vector within the same experiment. Each experiment is repeated 32 times for sequences with lengths in range $[2, 2^2, ..., 2^{15}]$, and 8 times for lengths in range $[2^{16}, ...,2^{18}]$. The benchmarks cover three user scenarios:
+To create realistic gapped sequences or gaps for insertion, gap lengths are sampled from a histogram distribution published by Goonesekere et al. \footnote{see Table 1 in \url{https://www.ncbi.nlm.nih.gov/pmc/articles/PMC419611/}, columns were summed up and normalized} for each position, which results in a rather dense distribution of short gaps (40\%-45\% gap proportion). After sampling, the \lq\lq gapped\rq\rq{} sequences were resized to have total sequence size of $2^i$. All four data structures are then initialized with the same gap vector within the same experiment. Each experiment is repeated 32 times for sequences with lengths in range $[2, 2^2, ..., 2^{15}]$, and 8 times for lengths in range $[2^{16}, ...,2^{18}]$. The benchmarks cover three user scenarios:
 \begin{description}
     \item[Benchmark 1] Read-only on ungapped or gapped sequence
     \item[Benchmark 2] Insert/Delete at {\bf random positions} into ungapped or gapped sequence
