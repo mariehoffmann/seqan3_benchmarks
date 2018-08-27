@@ -63,7 +63,7 @@ template<long unsigned int L>
 time_type avg(std::array<time_type, L> * durations, time_type quantile)
 {
     std::sort(durations->begin(), durations->end());
-    
+
     time_type offset = (L - L*quantile/100)/2;
     //std::cout << "offset = " << offset << ", L = " << L << ", quantile = " << quantile << std::endl;
     time_type aux = 0;
@@ -88,17 +88,17 @@ time_type avg(std::array<time_type, L> * durations, time_type quantile)
 
 // standard deviation
 template<long unsigned int L>
-time_type stddev(std::array<time_type, L> * durations, long int quantile)
+time_type stddev(std::array<time_type, L> * durations, unsigned int quantile=100)
 {
-    time_type offset = (L - L*quantile/100)/2;
+    time_type offset = (L - L * static_cast<time_type>(quantile)/100) / 2;
     std::cout << "offset = " << offset << std::endl;
     time_type avg_duration = avg<L>(durations, quantile);
     std::cout << "avg =\t" << avg_duration << std::endl;
     auto lambda = [avg_duration, offset](time_type acc, time_type t){return acc + ((t-avg_duration)/(L-1-2*offset)*(t-avg_duration)); };
     if (!std::is_sorted(durations->begin(), durations->end())) std::cout << "Error: durations are not sorted\n";
     time_type acc = 0;
-    auto it = durations.begin();
-    auto it_end = durations.end();
+    auto it = durations->begin();
+    auto it_end = durations->end();
     for (std::advance(it, offset), std::prev(it_end, offset); it < it_end; ++it)
     {
         acc = lambda(acc, *it);
