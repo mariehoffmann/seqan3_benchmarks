@@ -1,7 +1,7 @@
 /*
  Version with list of anchor gaps, i.e. a vector with pairs of virtual start position and gap length.
  Gap lengths are not accumulated, but anchor positions not relative (in contrast to classical anchor gap approach?), but virtual, i.e. on every insertion in the middle, tailing gaps need to be corrected by the new positional offset.
- 
+
  */
 
 #pragma once
@@ -13,7 +13,7 @@
 
 #include <seqan3/alphabet/concept.hpp>
 #include <seqan3/alphabet/gap/gapped.hpp>
-#include <seqan3/std/concept/range.hpp>
+#include <seqan3/range/all.hpp>
 #include <seqan3/range/detail/random_access_iterator.hpp>
 
 #include <sdsl/sd_vector.hpp>
@@ -22,60 +22,60 @@
 #define LOG_LEVEL_AL 0
 
 namespace seqan3 {
-    
+
     template <typename inner_type>
-    requires alphabet_concept<ranges::v3::value_type_t<inner_type>> &&
-    random_access_range_concept<inner_type> && sized_range_concept<inner_type>
+    requires alphabet_concept<ranges::v3::value_type_t<inner_type>>
+    //in std namespace and renamed! && random_access_range_concept<inner_type> && sized_range_concept<inner_type>
     struct anchor_list
     {
-        
+
     private:
         using gap_decorator_t   = anchor_list;
-        
+
     public:
         using alphabet_type = typename ranges::v3::value_type_t<inner_type>;
         using value_type = gapped<alphabet_type>;
-        
+
         using reference = value_type;
-        
+
         using const_reference = const reference;
         using iterator = detail::random_access_iterator<gap_decorator_t>;
-        
+
         using const_iterator = iterator;
         using difference_type = typename ranges::v3::difference_type_t<inner_type>;
-        
+
         using size_type = typename ranges::v3::size_type_t<inner_type>;
-        
+
         using gap_t             = std::pair<size_type, size_type>;
         using gap_list_t        = std::vector<gap_t>;
-        
+
         constexpr anchor_list()
         {
             data = std::shared_ptr<data_t>(new data_t{});
         };
-        
+
         constexpr anchor_list(anchor_list const &) = default;
-        
+
         constexpr anchor_list & operator=(anchor_list const &) = default;
-        
+
         constexpr anchor_list (anchor_list && rhs) = default;
-        
+
         constexpr anchor_list & operator=(anchor_list && rhs) = default;
-        
+
         ~anchor_list() = default;
-        
+
         constexpr anchor_list(inner_type * sequence): data{new data_t{sequence}} {};
-        
+
         auto begin() noexcept
         {
             return iterator{*this, 0};
         }
-        
+
         auto end() noexcept
         {
             return iterator{*this, size()};
         }
-        
+
         bool operator==(gap_decorator_t & rhs) // DONE
         {
             if (data->sequence != rhs.data->sequence || this->size() != rhs.size())
@@ -85,17 +85,17 @@ namespace seqan3 {
                     return false;
             return true;
         }
-        
+
         bool operator!=(gap_decorator_t & rhs)   // DONE
         {
             return !(*this == rhs);
         }
-        
+
         void swap(gap_decorator_t & rhs)         // DONE
         {
             data.swap(rhs.data);
         }
-        
+
         size_type size() const noexcept             // ok
         {
             if (!data->gap_list.size()){
@@ -108,18 +108,18 @@ namespace seqan3 {
                                                 [](size_type s, gap_t gap){return s + gap.second;});
             return data->sequence->size() + gap_sum;
         }
-        
+
         size_type max_size() const                  // DONE
         {
             return inner_type{}.max_size() + data->gap_list.max_size();
         }
-        
+
         bool empty() const                          // DONE
         {
             return ((!data->sequence) ? true : data->sequence->empty()) && data->gap_list.size() == 0;
         }
-        
-        
+
+
         // TODO: either store virtual postions, then update succeeding gaps or debug []-operator
         bool insert_gap(size_type const pos, size_type const size=1) // TO TEST
         {
@@ -129,7 +129,7 @@ namespace seqan3 {
                 return false;
             }
             // just push_back or search true position or expand existing one
-            
+
             size_type y, x = 0; // current gap range [x .. y[
             bool search_flag = true;
             size_type i = 0;
@@ -169,14 +169,14 @@ namespace seqan3 {
             }
             return true;
         }
-        
+
         bool erase_gap(size_type const pos)
         {
             if ((value_type)(*this)[pos] != gap::GAP)
                 return false;
             return erase_gap(pos, pos+1);
         }
-        
+
         // TODO: make search binary, since gap positions are virtual
         bool erase_gap2(size_type const pos1, size_type const pos2)      // UNTESTED
         {
@@ -208,7 +208,7 @@ namespace seqan3 {
             }
             return false;
         }
-        
+
         // TODO: behaviour when no gap in this range, or less than pos2-pos1?
         bool erase_gap(size_type const pos1, size_type const pos2)      // UNTESTED
         {
@@ -220,7 +220,7 @@ namespace seqan3 {
             // case 1: pos1 is not start of gap, i.e. correct iterator position and shorten existing gap
             if (it > data->gap_list.begin() && (((*(it-1)).first + (*(it-1)).second) >= pos2))
                (*--it).second -= pos2 - pos1;
-             
+
             assert(it != data->gap_list.end());
             // case 2: erase complete gap
             if ((*it).first == pos1 && (*it).first + (*it).second == pos2)
@@ -233,24 +233,24 @@ namespace seqan3 {
             }
             return true;
         }
-        
-        
+
+
         inner_type & get_underlying_sequence() const
         {
             return data->sequence;
         }
-        
+
         //!\brief Set pointer to ungapped sequence and reset gap vector.
         void set_underlying_sequence(inner_type & sequence) const
         {
             data->sequence = sequence;
             data->gap_list.clear();
         }
-        
+
         constexpr reference operator[](size_type const idx) // const noexcept(noexcept((*host)[pos+n]))
         {
             assert(idx < size());
-            
+
             if (!data->gap_list.size()) return value_type((*data->sequence)[idx]);
             if (LOG_LEVEL_AL)
             {
@@ -292,7 +292,7 @@ namespace seqan3 {
             else
                 return (*data->sequence)[idx - gap_acc];
         }
-        
+
         bool resize(size_type new_size)
         {
             if (LOG_LEVEL_AL) std::cout << "start resizing ... ";
@@ -307,15 +307,15 @@ namespace seqan3 {
             if (LOG_LEVEL_AL) std::cout << "... final size = " << this->size() << std::endl;
             return true;
         }
-        
+
     private:
         struct data_t
         {
             inner_type * sequence{};
             gap_list_t gap_list{};
-            
+
         };
         std::shared_ptr<data_t> data;
     };
-    
+
 } // namespace seqan3

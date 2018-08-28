@@ -8,7 +8,7 @@
 #include <seqan3/alphabet/concept.hpp>
 #include <seqan3/alphabet/gap/gapped.hpp>
 //#include <seqan3/range/container/concept.hpp>
-#include <seqan3/std/concept/range.hpp>
+#include <seqan3/range/all.hpp>
 #include <seqan3/range/detail/random_access_iterator.hpp>
 
 #include <sdsl/sd_vector.hpp>
@@ -20,12 +20,12 @@ namespace seqan3 {
 
     template <typename inner_type>
     //!\cond
-    requires alphabet_concept<ranges::v3::value_type_t<inner_type>> &&
-    random_access_range_concept<inner_type> && sized_range_concept<inner_type>
+    requires alphabet_concept<ranges::v3::value_type_t<inner_type>>
+    // see doc, in namespace std and renamed: && random_access_range_concept<inner_type> && sized_range_concept<inner_type>
     //!\endcond
     struct aligned_sequence_adaptor_constant_access
     {
-        
+
     private:
         //!\privatesection
         using aligned_sequence_t    = aligned_sequence_adaptor_constant_access;
@@ -38,7 +38,7 @@ namespace seqan3 {
         using select_0_support_t      = sdsl::select_support_sd<0>;  //bit_vector_t::select_0_type;
         //!\brief Type of the 1 select support data structure.
         using select_1_support_t      = sdsl::select_support_sd<1>;  //bit_vector_t::select_0_type;
-        
+
     public:
         //!\publicsection
         /*!\name Member types
@@ -48,33 +48,33 @@ namespace seqan3 {
         //!\hideinitializer
         using alphabet_type = typename ranges::v3::value_type_t<inner_type>;
         using value_type = gapped<alphabet_type>;
-        
+
         //!\brief Use reference type defined by container.
         //!\hideinitializer
         using reference = value_type;
-        
+
         //!\brief Use const reference type provided by container.
         //!\hideinitializer
         using const_reference = const reference;
         // decltype(std::as_const(data_values)
-        
+
         //!\brief Use random access iterator on container as iterator type.
         //!\hideinitializer
         using iterator = detail::random_access_iterator<aligned_sequence_t>;
-        
+
         //!\brief Use const random access iterator on container as const iterator type.
         //!\hideinitializer
         using const_iterator = iterator;
-        
+
         //!\brief Type for distances between iterators is taken from alphabet container.
         //!\hideinitializer
         using difference_type = typename ranges::v3::difference_type_t<inner_type>;
-        
+
         //!\brief Use alphabet container's size_type as a position.
         //!\hideinitializer
         using size_type = typename ranges::v3::size_type_t<inner_type>;
         //!\}
-        
+
         /* rule of six */
         /*!\name Constructors, destructor and assignment
          * \{
@@ -84,23 +84,23 @@ namespace seqan3 {
         {
             data = std::shared_ptr<data_t>(new data_t{});
         };
-        
+
         //!\brief Default copy constructor.
         constexpr aligned_sequence_adaptor_constant_access(aligned_sequence_adaptor_constant_access const &) = default;
-        
+
         //!\brief Default copy construction via assignment.
         constexpr aligned_sequence_adaptor_constant_access & operator=(aligned_sequence_adaptor_constant_access const &) = default;
-        
+
         //!\brief Move constructor.
         constexpr aligned_sequence_adaptor_constant_access (aligned_sequence_adaptor_constant_access && rhs) = default;
-        
+
         //!\brief Move assignment.
         constexpr aligned_sequence_adaptor_constant_access & operator=(aligned_sequence_adaptor_constant_access && rhs) = default;
-        
+
         //!\brief Use default deconstructor.
         ~aligned_sequence_adaptor_constant_access() = default;
         //!\}
-        
+
         //!\brief
         /*!\name Constructors of sequence concept.
          * \{
@@ -113,7 +113,7 @@ namespace seqan3 {
             data->gap_vector = bit_vector_t(builder);
         };
         //!\}
-        
+
         /*!\name Iterators
          * \{
          */
@@ -122,14 +122,14 @@ namespace seqan3 {
         {
             return iterator{*this, 0};
         }
-        
+
         //!\brief Return iterator pointing to past-the-end element of gapped sequence.
         auto end() noexcept
         {
             return iterator{*this, size()};
         }
         //!\}
-        
+
         /*!\name Boolean operators
          * \{
          */
@@ -158,19 +158,19 @@ namespace seqan3 {
                     return false;
             return true;
         }
-        
+
         //!\brief Unequality operator for aligned sequences.
         bool operator!=(aligned_sequence_t & rhs)
         {
             return !(*this == rhs);
         }
-        
+
         //!\brief Swap two aligned sequences and their support structures.
         void swap(aligned_sequence_t & rhs)
         {
             data.swap(rhs.data);
         }
-        
+
         //!\brief Return gapped sequence length.
         size_type size() noexcept
         {
@@ -178,7 +178,7 @@ namespace seqan3 {
             // return data->gap_vector.size();
             if (data->dirty)
                 update_support_structures();
-            
+
             if (LOG_LEVEL_GV)
             {
                 std::cout << "enter size ...\n";
@@ -188,7 +188,7 @@ namespace seqan3 {
             }
             return data->rank_1_support.rank(data->gap_vector.size()-1) + data->sequence->size();
         }
-        
+
         /*!\brief Return the maximal aligned sequence length.
          *
          * The maximal sequence length is limited by either the maximal size of the
@@ -200,14 +200,14 @@ namespace seqan3 {
         {
             return std::min<size_type>(data->sequence->max_size(), sdsl::bit_vector{}.max_size());
         }
-        
+
         //!\brief An aligned sequence is empty if it contains no alphabet letters or gaps.
         bool empty() const
         {
             return data->sequence->empty() && data->gap_vector.size() == 0;
         }
         //!\}
-        
+
         /*!\name Sequence concept support.
          * \{
          */
@@ -216,7 +216,7 @@ namespace seqan3 {
          * Elements right of the newly inserted elemented are shifted right. The
          * returned iterator points to the position of the insertion.
          */
-        
+
         /*!\brief Insert a value multiple times at an iterator position.
          *
          * The returned iterator points to the position of the left-most inserted
@@ -228,7 +228,7 @@ namespace seqan3 {
             assert(insert_gap(pos, size));
             return it;
         }
-        
+
         /*!\brief Insert value at a position 'size' times.
          *
          * Return false if given position exceeds the current size by one.
@@ -240,14 +240,14 @@ namespace seqan3 {
                 return false;
             if (data->dirty)
                 update_support_structures();
-            
+
             // 00011111001111100000000000       after (11,4) before (13,1)
             // 01234567890123456789012345
-            
+
             //enter insert_gap with pos = 13, and size = 1
             //init builder with new amount of set bits: 11      correct
             //iterate over suffix from i = 25 to 14
-            
+
             // rank queries on empty sd_vector throws assertion
             size_type m = (!this->size()) ? size : data->rank_1_support.rank(this->size()) + size;
             if (LOG_LEVEL_GV) std::cout << "init builder with new amount of set bits: " << m << std::endl;
@@ -285,7 +285,7 @@ namespace seqan3 {
             }
             return true;
         }
-        
+
         /*\brief Erase element at the iterator's position.
          *
          * Return iterator to past-the-erased element.
@@ -295,7 +295,7 @@ namespace seqan3 {
             assert(erase_gap(static_cast<size_type>(it - iterator{})));
             return it;
         }
-        
+
         /*!\brief Erase element at a given index.
          *
          * Return false if index exceeds current size minus one.
@@ -308,7 +308,7 @@ namespace seqan3 {
                 return false;
             return erase_gap(pos, pos+1);
         }
-        
+
         //!\brief Erase all gaps in range pos1 and pos2 (exclusive). Gaps
         // right-hand of 2nd iterator are shifted by the number of gaps deleted.
         bool erase_gap(size_type const pos1, size_type const pos2)
@@ -340,7 +340,7 @@ namespace seqan3 {
             data->dirty = true;
             return true;
         }
-        
+
         //!\brief Erase all gaps falling into range given by first and second
         // iterator (exclusive). Gaps right-hand of 2nd iterator are shifted by
         // the number of gaps deleted.
@@ -351,7 +351,7 @@ namespace seqan3 {
             assert(erase_gap(pos1, pos2));
             return it1;
         }
-        
+
         //!\brief Append gap symbol to the aligned sequence.
         // Note: there is no resize for sd_vector, it has to be re-initialized with
         // sd_vector_builder.
@@ -369,7 +369,7 @@ namespace seqan3 {
             data->gap_vector = bit_vector_t(builder);
             data->dirty = true;
         }
-        
+
         //!\brief Delete last gap symbol if set, else return false.
         //
         // Worst-case runtime O(r+s+m), r, s rank and select support initialization,
@@ -390,21 +390,21 @@ namespace seqan3 {
             data->gap_vector = bit_vector_t(builder);
             return true;
         }
-        
+
         //!\brief Clear gaps in bit vector. Alphabet sequence remains unchanged.
         void clear()
         {
             data->gap_vector = bit_vector_t(sdsl::bit_vector{data->sequence->size(), 0});
             data->dirty = true;
         }
-        
+
         //!\brief Return first symbol of aligned sequence.
         reference front()
         {
             assert(size() > 0u);
             return (*this)[0];
         }
-        
+
         //!\brief Return last symbol of aligned sequence.
         reference back()
         {
@@ -412,7 +412,7 @@ namespace seqan3 {
             return (*this)[size()-1];
         }
         //!\}
-        
+
         /*!\name Sequence getter and setter.
          * \{
          */
@@ -421,7 +421,7 @@ namespace seqan3 {
         {
             return data->sequence;
         }
-        
+
         //!\brief Set pointer to ungapped sequence.
         void set_underlying_sequence(inner_type * sequence) const
         {
@@ -430,7 +430,7 @@ namespace seqan3 {
             data->dirty = true;
         }
         //!\}
-        
+
         /*\brief Map a compressed representation index to the aligned sequence index.
          *
          * Note that a i-th 0 corresponds to the i-th position in the compressed sequence.
@@ -447,7 +447,7 @@ namespace seqan3 {
                 update_support_structures();
             return data->select_0_support.select(idx + 1);
         }
-        
+
         /*!\brief Map from gapped sequence position to index of compressed
          * sequence representation.
          *
@@ -467,7 +467,7 @@ namespace seqan3 {
             static_cast<difference_type>(data->rank_1_support.rank(std::min<size_type>(position_gapped+1, this->size())));
         }
         //!\}
-        
+
         /*!\name Random access sequence concept support.
          * \{
          */
@@ -481,7 +481,7 @@ namespace seqan3 {
             }
             return gap::GAP;
         }
-        
+
         //!\brief Return reference to aligned sequence for given index.
         value_type at(size_type const idx)
         {
@@ -491,7 +491,7 @@ namespace seqan3 {
             return (value_type)(*this)[idx];
         }
         //!\}
-        
+
         bool resize(size_type new_size)
         {
             if (LOG_LEVEL_GV) std::cout << "start resizing ... ";
@@ -520,11 +520,11 @@ namespace seqan3 {
             if (LOG_LEVEL_GV) std::cout << "... final size = " << this->size() << std::endl;
             return true;
         }
-        
+
     private:
         //!\privatesection
         //!\brief Structure for storing a sequence and gap information and helper functions.
-        
+
         struct data_t
         {
             /*!\brief Pointer to where the ungapped sequence is stored.
@@ -535,7 +535,7 @@ namespace seqan3 {
              * Per default it is a null pointer.
              */
             inner_type * sequence{};
-            
+
             /*!\brief Where the gapped sequence is stored.
              *
              * Gap presentation of the aligned sequence (1: gap, 0: alphabet letter).
@@ -543,7 +543,7 @@ namespace seqan3 {
              * to the aligned sequence size.
              */
             bit_vector_t gap_vector = bit_vector_t();
-            
+
             /*!\brief Rank support structure for projection into ungapped sequence space.
              *
              * The rank of position i is number 1s in the prefix 0..i-1. This corresponds
@@ -558,21 +558,21 @@ namespace seqan3 {
              */
             //!\hideinitializer
             select_0_support_t select_0_support{};
-            
+
             /*!\brief Select support structure for copying set bits in O(m).
              *
              * Select i returns the gap vector position of the i-th 1 in constant time.
              */
             //!\hideinitializer
             select_1_support_t select_1_support{};
-            
+
             //!\brief Flag to indicate whether sd_vector support structures needs to be
             // updated before executing rank or select queries.
             bool dirty{true};
         };
-        
+
         std::shared_ptr<data_t> data;
-        
+
         //!\brief Re-initialize rank and select support structures of bit_vector.
         void update_support_structures()
         {
@@ -582,12 +582,12 @@ namespace seqan3 {
             data->dirty = false;
         }
     };
-    
+
     //!\brief Global swap function.
     template <typename inner_type, char gap_symbol = '_'>
     void swap (aligned_sequence_adaptor_constant_access<inner_type> & lhs, aligned_sequence_adaptor_constant_access<inner_type> & rhs)
     {
         lhs.swap(rhs);
     }
-    
+
 } // namespace seqan3

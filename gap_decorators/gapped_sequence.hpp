@@ -8,20 +8,20 @@
 namespace seqan3
 {
 
-template <typename inner_type>  //=std::vector<gapped<dna_type>>
+template <typename inner_type> // inner_type requires container concept
 struct gapped_sequence
 {
     using value_type = typename inner_type::value_type;  //ranges::v3::value_type_t<inner_type>;  // =gapped<dna_type>
     using reference = value_type;
     using const_reference = const reference;
-    using iterator = typename std::vector<value_type>::iterator;
+    using iterator = typename inner_type::iterator; //std::vector<value_type>::iterator;
     using const_iterator = iterator;
     using difference_type = typename inner_type::difference_type;  //ranges::v3::difference_type_t<value_type>;
     using size_type = typename inner_type::size_type;  //ranges::v3::size_type_t<value_type>;
 
     constexpr gapped_sequence()
     {
-        _data = std::vector<value_type>();
+        _data = inner_type();  //std::vector<value_type>();
     };
 
     constexpr gapped_sequence(gapped_sequence const &) = default;

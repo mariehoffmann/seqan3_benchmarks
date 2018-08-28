@@ -8,11 +8,14 @@
 #include <numeric>
 #include <iostream>
 #include <random>
+#include <string>
 #include <unordered_map>
 #include <utility>
 
 #include <seqan3/alphabet/gap/gapped.hpp>
 #include <seqan3/alphabet/nucleotide/all.hpp>
+#include <seqan3/range/container/bitcompressed_vector.hpp>
+
 
 #include "../anchor_list.hpp"
 #include "../anchor_set.hpp"
@@ -22,32 +25,36 @@
 
 // g++ -std=c++17 -DNDEBUG -O3 -msse4.2 -I/<path_to>/include -L/<path_to>/lib -lsdsl -ldivsufsort -ldivsufsort64 -I/<path_to>/seqan3/include/ -I. -I/<path_to>/range-v3/include/ -fconcepts -Wall -Wextra benchmark1.cpp -o <[benchmark]>
 
-#define LOG_LEVEL_<[benchmark]> 0
+#define LOG_LEVEL_<[LOG_LEVEL]> 0
 #define SEED <[seed]>
 #define NUM_OP 1024     // number of operations performed per experiment
-#define REPEAT <[REPEAT]>
+#define REPEAT <[REPEAT]>  // TODO: segfault when running with REPEAT >= 2<<9
 #define POW1 <[POW1]>
 #define POW2 <[POW2]>
 #define GAP_FLAG <[GAP_FLAG]>   // 0: operate on ungapped sequence, 1: operate on already gapped sequence
 
 using namespace seqan3;
 
-void benchmark1(std::string binary_name)
+void benchmark1(void)  //std::string const & binary_name)
 {
-
-    std::cout << "Starting " << binary_name << " with REPEAT=" << REPEAT << " ..." << std::endl;
+    std::cout << "Starting " << std::endl;
+    //std::cout << binary_name << " with REPEAT = " << std::endl;
+    std::cout << REPEAT << " ..." << std::endl;
 
     using alphabet_type = <[alphabet_type]>; // to be replace by parser
-    using inner_type = typename std::vector<alphabet_type>;
+    using inner_type = typename <[container_type]>; //std::vector<alphabet_type>;
     using size_type = typename ranges::v3::size_type_t<inner_type>;
     using time_type = long double;
 
     // setup
-    if (LOG_LEVEL_<[benchmark]>) std::cout << "set up seq_length ...\n";
+    if (LOG_LEVEL_<[LOG_LEVEL]>) std::cout << "set up seq_length ...\n";
     std::vector<size_type> seq_lengths;
     for (short unsigned int p = POW1-1; p < POW2; ++p) seq_lengths.push_back(1 << (p+1));
-    std::vector<alphabet_type> seq;    // gap-free sequences for all 3 implementations
-    std::vector<gapped<alphabet_type>> gs;          // gapped sequence
+    // container for gap-free sequence either std::vector<alphabet_type> or seqan3::bitcompressed_vector<alphabet_type>
+    inner_type seq;
+
+    // gapped sequence for measuring gap to dna ratio
+    std::vector<gapped<alphabet_type>> gs;
 
     std::vector<size_type> gaps(0);
     // store accumulated statistics
@@ -62,28 +69,28 @@ void benchmark1(std::string binary_name)
     for (auto seq_len : seq_lengths)
     {
         // reset durations
-        if (LOG_LEVEL_<[benchmark]>) std::cout << "reset durations ...\n";
+        if (LOG_LEVEL_<[LOG_LEVEL]>) std::cout << "reset durations ...\n";
         std::fill(durations.begin(),durations.end(), 0);
-        if (LOG_LEVEL_<[benchmark]>) std::cout << "done, continue benchmark with seq_len = " << seq_len << std::endl;
+        if (LOG_LEVEL_<[LOG_LEVEL]>) std::cout << "done, continue benchmark with seq_len = " << seq_len << std::endl;
         for (long unsigned int round = 0; round < NUM_OP; ++round)
         {
-            if (LOG_LEVEL_<[benchmark]>) std::cout << "start resizing ...\n";
+            if (LOG_LEVEL_<[LOG_LEVEL]>) std::cout << "start resizing ...\n";
             seq.resize(seq_len);
-            if (LOG_LEVEL_<[benchmark]>) std::cout << "done resizing.\n";
+            if (LOG_LEVEL_<[LOG_LEVEL]>) std::cout << "done resizing.\n";
 
             //fill vector with A
-            if (LOG_LEVEL_<[benchmark]>) std::cout << "start filling sequence ...\n";
+            if (LOG_LEVEL_<[LOG_LEVEL]>) std::cout << "start filling sequence ...\n";
             std::fill(seq.begin(), seq.end(), <[letter_A]>);
-            if (LOG_LEVEL_<[benchmark]>) std::cout << "done filling.\n";
+            if (LOG_LEVEL_<[LOG_LEVEL]>) std::cout << "done filling.\n";
 
-            if (LOG_LEVEL_<[benchmark]>) std::cout << "init seq length is : " << seq.size() << std::endl;
+            if (LOG_LEVEL_<[LOG_LEVEL]>) std::cout << "init seq length is : " << seq.size() << std::endl;
             // sample gap lengths
             gaps.resize(seq_len);
             sample<size_type>(&gaps, seq_len);
-            if (LOG_LEVEL_<[benchmark]>) std::cout << "sampling done" << std::endl;
+            if (LOG_LEVEL_<[LOG_LEVEL]>) std::cout << "sampling done" << std::endl;
 
             // i) anchor list implementation
-            if (LOG_LEVEL_<[benchmark]>) std::cout << "init gap decorator al ...\n";
+            if (LOG_LEVEL_<[LOG_LEVEL]>) std::cout << "init gap decorator al ...\n";
 
             <[gap_decorator]><inner_type> gap_decorator(&seq);
 
@@ -93,27 +100,27 @@ void benchmark1(std::string binary_name)
             {
                 for (size_type i = gaps.size()-1; i != 0; --i)
                 {
-                    if (LOG_LEVEL_<[benchmark]>) std::cout << "gap_len = " << gaps[i] << std::endl;
+                    if (LOG_LEVEL_<[LOG_LEVEL]>) std::cout << "gap_len = " << gaps[i] << std::endl;
                     if (gaps[i] > 0)
                     {
-                        if (LOG_LEVEL_<[benchmark]>) std::cout << "insert gap (" << i << ", " << gaps[i] << ") into structure ...\n";
+                        if (LOG_LEVEL_<[LOG_LEVEL]>) std::cout << "insert gap (" << i << ", " << gaps[i] << ") into structure ...\n";
                         gap_decorator.insert_gap(i, gaps[i]);
-                        if (LOG_LEVEL_<[benchmark]>) print_sequence<<[gap_decorator]><std::vector<alphabet_type>>>(gap_decorator);
+                        //if (LOG_LEVEL_<[LOG_LEVEL]>) print_sequence<<[gap_decorator]><std::vector<alphabet_type>>>(gap_decorator);
 
                         gap_acc += gaps[i];
                     }
                 }
             }
-            if (LOG_LEVEL_<[benchmark]>) std::cout << "num gaps inserted: " << gap_acc << std::endl;
+            if (LOG_LEVEL_<[LOG_LEVEL]>) std::cout << "num gaps inserted: " << gap_acc << std::endl;
             // shorten container for not exceeding target sequence length
-            if (LOG_LEVEL_<[benchmark]>) std::cout << "resize with final seq_len = " << seq_len << std::endl;
+            if (LOG_LEVEL_<[LOG_LEVEL]>) std::cout << "resize with final seq_len = " << seq_len << std::endl;
             gap_decorator.resize(seq_len);
-            if (LOG_LEVEL_<[benchmark]>) std::cout << "... done\n";
+            if (LOG_LEVEL_<[LOG_LEVEL]>) std::cout << "... done\n";
 
             int gap_ctr = 0;
             for (auto s : gs){ if (s == gap::GAP) ++gap_ctr;}
-            if (LOG_LEVEL_<[benchmark]>) std::cout << "gap proportion: " << (float)gap_ctr/(float)seq_len << std::endl;
-            //if (LOG_LEVEL_<[benchmark]>) {std::cout <<"aligned sequence = "; print_sequence<<[gap_decorator]>>(gap_decorator);}
+            if (LOG_LEVEL_<[LOG_LEVEL]>) std::cout << "gap proportion: " << (float)gap_ctr/(float)seq_len << std::endl;
+            //if (LOG_LEVEL_<[LOG_LEVEL]>) {std::cout <<"aligned sequence = "; print_sequence<<[gap_decorator]>>(gap_decorator);}
 
             // perform reading at random positions R times
             std::mt19937 generator(SEED); //Standard mersenne_twister_engine seeded with rd()
@@ -124,7 +131,7 @@ void benchmark1(std::string binary_name)
 
             // case gapped sequence: vector<alphabet_type>, else: vector<gapped<alphabet_type>>
             std::vector<<[alphabet_type]>> aux(10);
-            for (auto j = 0; j < REPEAT>>1; ++j)
+            for (auto j = 0; j < REPEAT; ++j) // for benchmark 2 and 3 reduce REPEAT
             {
                 // sample read position
                 pos = uni_dis(generator);
@@ -139,15 +146,15 @@ void benchmark1(std::string binary_name)
             } // REPEAT read ops
         } // N experiment repetitions
 
-        if (LOG_LEVEL_<[benchmark]>) std::cout << seq_len << " done\n";
+        if (LOG_LEVEL_<[LOG_LEVEL]>) std::cout << seq_len << " done\n";
         unsigned int quantile = 99;
         avg_duration = avg<REPEAT*NUM_OP>(&durations, quantile);
         stddev_duration = stddev<REPEAT*NUM_OP>(&durations, quantile);
-        if (LOG_LEVEL_<[benchmark]>) std::cout << "avg duration time of reading of approach: " << avg_duration << "\u00B1" << stddev_duration << " ns\n";
+        if (LOG_LEVEL_<[LOG_LEVEL]>) std::cout << "avg duration time of reading of approach: " << avg_duration << "\u00B1" << stddev_duration << " ns\n";
         results.push_back(stats<time_type, size_type>{seq_len, NUM_OP*REPEAT, avg_duration, stddev_duration});
 
     } // seq_len
-    std::cout << "Benchmark 1: read-only at random positions on GAP_FLAG= " << GAP_FLAG << " sequence\nwith " << NUM_OP << " repetitions and " << REPEAT << " read operations per experiment\n";
+    std::cout << "Benchmark 1: read-only at random positions on GAP_FLAG= " << GAP_FLAG << " sequence\nwith " << REPEAT << " repetitions and " << NUM_OP << " read operations per experiment\n";
     std::cout << "seq_len\t\tavg\t\tstddev\n---------------------------------------\n";
 
     for (auto it = results.begin(); it < results.end(); ++it)
@@ -159,7 +166,7 @@ void benchmark1(std::string binary_name)
     // write to csv file
     std::ofstream outfile;
     outfile.open ("<[benchmark.csv]>");
-    outfile << "<[benchmark]>: " << "Read-only at random positions on GAP_FLAG= " << GAP_FLAG << " sequence\nwith " << NUM_OP << " repetitions and " << REPEAT << " read operations per experiment\n";
+    outfile << "<[benchmark]>: " << "Read-only at random positions on GAP_FLAG= " << GAP_FLAG << " sequence\nwith " << REPEAT << " repetitions and " << NUM_OP << " read operations per experiment\n";
 
     outfile << "#seq_len,avg[ns],stddev[ns]\n";
     for (auto it = results.begin(); it < results.end(); ++it)
@@ -175,6 +182,11 @@ int main(int argc, char** argv)
         std::cout << "Usage: <[benchmark]>\n";
         return 2;
     }
-    benchmark1(argv[0]);
-    return 0;
+    std::cout << "Start benchmark1 with GAP_FLAG = " << GAP_FLAG << std::endl;
+    std::cout << "argc = " << argc << std::endl;
+    std::cout << "argv[0] = " << argv[0] << std::endl;
+    std::string s(argv[0]);
+    std::cout << "argv[0] as string: " << s << " with size: " << s.size() << std::endl;
+    benchmark1();
+    return 1;
 }
