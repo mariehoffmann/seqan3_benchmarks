@@ -26,6 +26,8 @@ E.g. called with benchmark index 1, this will create the following 20 benchmark 
     * positions are relative to the aligned sequence and gap lengths accumulated
 
 where `dna4` uses a `bitcompressed_vector<dna4>` as underlying sequence container and `dna15` the `std::vector<dna15>` container.
+The python script then compiles the source files and adds a suffix based on the parameter settings for `REPEAT` and power range.
+Finally, the binaries are executed in parallel using Python's `Process` class from the `multiprocessing` library. Result files are written into `./results` subdirectory. 
 
 ## Benchmarks
 

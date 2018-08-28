@@ -53,7 +53,6 @@ SIZE_TYPE sample()
     std::uniform_real_distribution<double> uni(0.6396, 1.0);
     std::array<double,10> cumsum = {0.6395, 0.8263, 0.8871, 0.9257, 0.9544, 0.9709, 0.9813, 0.9890, 0.9955, 1.0000};
     double y = uni(generator);
-    std::cout << "sampled y from [0.6396, 1.0]: " << y << std::endl;
     auto it = std::find_if(cumsum.begin(), cumsum.end(), [y](double i){return y <= i;});
     return it - cumsum.begin();
 }
@@ -63,9 +62,7 @@ template<long unsigned int L>
 time_type avg(std::array<time_type, L> * durations, time_type quantile)
 {
     std::sort(durations->begin(), durations->end());
-
     time_type offset = (L - L*quantile/100)/2;
-    //std::cout << "offset = " << offset << ", L = " << L << ", quantile = " << quantile << std::endl;
     time_type aux = 0;
     time_type overflow = 0;
     auto it = durations->begin();
@@ -77,12 +74,10 @@ time_type avg(std::array<time_type, L> * durations, time_type quantile)
         {
             ++overflow;
             aux /= 2;
-            std::cout << "aux above threshold\n";
         }
         aux += (*it/std::pow(2, overflow));
     }
     //return std::accumulate(durations->begin()+offset, durations->end()-offset, 0, std::plus<time_type>()) / (L-2*offset);
-    std::cout << "overflow = " << overflow << std::endl;
     return (overflow) ? (aux/(L-2*offset))*(std::pow(2, overflow)) : (aux/(L-2*offset));
 }
 
@@ -91,19 +86,14 @@ template<long unsigned int L>
 time_type stddev(std::array<time_type, L> * durations, unsigned int quantile=100)
 {
     time_type offset = (L - L * static_cast<time_type>(quantile)/100) / 2;
-    std::cout << "offset = " << offset << std::endl;
     time_type avg_duration = avg<L>(durations, quantile);
-    std::cout << "avg =\t" << avg_duration << std::endl;
     auto lambda = [avg_duration, offset](time_type acc, time_type t){return acc + ((t-avg_duration)/(L-1-2*offset)*(t-avg_duration)); };
     if (!std::is_sorted(durations->begin(), durations->end())) std::cout << "Error: durations are not sorted\n";
     time_type acc = 0;
     auto it = durations->begin();
     auto it_end = durations->end();
     for (std::advance(it, offset), std::prev(it_end, offset); it < it_end; ++it)
-    {
         acc = lambda(acc, *it);
-        std::cout << "intermediate acc = " << acc << std::endl;
-    }
     //time_type d = std::sqrt(std::accumulate(durations->begin()+offset, durations->end()-offset, 0, lambda) / 1);
     return std::sqrt(acc);
 }
