@@ -16,7 +16,6 @@
 #include <seqan3/alphabet/nucleotide/all.hpp>
 #include <seqan3/range/container/bitcompressed_vector.hpp>
 
-
 #include "../anchor_list.hpp"
 #include "../anchor_set.hpp"
 #include "../gap_vector.hpp"
@@ -35,12 +34,8 @@
 
 using namespace seqan3;
 
-void benchmark1(void)  //std::string const & binary_name)
+void benchmark1(int csv_flag)  //std::string const & binary_name)
 {
-    std::cout << "Starting " << std::endl;
-    //std::cout << binary_name << " with REPEAT = " << std::endl;
-    std::cout << REPEAT << " ..." << std::endl;
-
     using alphabet_type = <[alphabet_type]>; // to be replace by parser
     using inner_type = typename <[container_type]>; //std::vector<alphabet_type>;
     using size_type = typename ranges::v3::size_type_t<inner_type>;
@@ -106,7 +101,6 @@ void benchmark1(void)  //std::string const & binary_name)
                         if (LOG_LEVEL_<[LOG_LEVEL]>) std::cout << "insert gap (" << i << ", " << gaps[i] << ") into structure ...\n";
                         gap_decorator.insert_gap(i, gaps[i]);
                         //if (LOG_LEVEL_<[LOG_LEVEL]>) print_sequence<<[gap_decorator]><std::vector<alphabet_type>>>(gap_decorator);
-
                         gap_acc += gaps[i];
                     }
                 }
@@ -155,7 +149,7 @@ void benchmark1(void)  //std::string const & binary_name)
 
     } // seq_len
     std::cout << "Benchmark 1: read-only at random positions on GAP_FLAG= " << GAP_FLAG << " sequence\nwith " << REPEAT << " repetitions and " << NUM_OP << " read operations per experiment\n";
-    std::cout << "seq_len\t\tavg\t\tstddev\n---------------------------------------\n";
+    std::cout << "seq_len\t\tavg\u00B1stddev\t\tspace consumption\n---------------------------------------\n";
 
     for (auto it = results.begin(); it < results.end(); ++it)
     {
@@ -164,29 +158,28 @@ void benchmark1(void)  //std::string const & binary_name)
         std::cout << std::endl;
     }
     // write to csv file
-    std::ofstream outfile;
-    outfile.open ("<[benchmark.csv]>");
-    outfile << "<[benchmark]>: " << "Read-only at random positions on GAP_FLAG= " << GAP_FLAG << " sequence\nwith " << REPEAT << " repetitions and " << NUM_OP << " read operations per experiment\n";
+    if (csv_flag)
+    {
+        std::ofstream outfile;
+        outfile.open ("<[benchmark.csv]>");
+        //outfile << "<[benchmark]>: " << "Read-only at random positions on GAP_FLAG= " << GAP_FLAG << " sequence\nwith " << REPEAT << " repetitions and " << NUM_OP << " read operations per experiment\n";
+        outfile << "#seq_len,avg[ns],stddev[ns],space\n";
+        for (auto it = results.begin(); it < results.end(); ++it)
+            outfile << (*it).seq_len << "," << (*it).avg << "," << (*it).stddev << "\n";
 
-    outfile << "#seq_len,avg[ns],stddev[ns]\n";
-    for (auto it = results.begin(); it < results.end(); ++it)
-        outfile << (*it).seq_len << "," << (*it).avg << "," << (*it).stddev << "\n";
-
-    outfile.close();
+        outfile.close();
+    }
 }
 
 int main(int argc, char** argv)
 {
-    if (argc != 1)
+    if (argc > 2)
     {
-        std::cout << "Usage: <[benchmark]>\n";
+        std::cout << "Usage: <[benchmark]> [csv_flag]\n";
         return 2;
     }
-    std::cout << "Start benchmark1 with GAP_FLAG = " << GAP_FLAG << std::endl;
-    std::cout << "argc = " << argc << std::endl;
-    std::cout << "argv[0] = " << argv[0] << std::endl;
-    std::string s(argv[0]);
-    std::cout << "argv[0] as string: " << s << " with size: " << s.size() << std::endl;
-    benchmark1();
+    std::cout << "Start " << argv[0] << " ...\n";
+    benchmark1((argc == 2) ? atoi(argv[1]) : 0);
+    std::cout << "Finished " << argv[0] << " successfully.\n";
     return 1;
 }
