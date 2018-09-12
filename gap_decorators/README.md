@@ -9,7 +9,7 @@ In order to
 
 set environmental variables (or name directly) home and installation directories for `seqan3` and `range-v3`, and run:
 
-`python main.py <benchmark_idx> $home_dir $seqan3_dir $rangev3_dir <REPEAT> <POW1> <POW2>`
+`python main.py <benchmark_idx> $HOME_DIR $SEQAN3_DIR $RANGEV3_DIR $SDSL_DIR <REPEAT> <POW1> <POW2>`
 
 E.g. called with benchmark index 1, this will create the following 20 benchmark source files and place them into the `./src/` subfolder:
 
@@ -27,7 +27,7 @@ E.g. called with benchmark index 1, this will create the following 20 benchmark 
 
 where `dna4` uses a `bitcompressed_vector<dna4>` as underlying sequence container and `dna15` the `std::vector<dna15>` container.
 The python script then compiles the source files and adds a suffix based on the parameter settings for `REPEAT` and power range.
-Finally, the binaries are executed in parallel using Python's `Process` class from the `multiprocessing` library. Result files are written into `./results` subdirectory. 
+Finally, the binaries are executed in parallel using Python's `Process` class from the `multiprocessing` library. Result files are written into `./results` subdirectory.
 
 ## Benchmarks
 
