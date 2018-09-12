@@ -12,6 +12,7 @@
     to produce, run, and evaluate files for benchmark1 with sequence length
     ranges in [2^2, 2^3, ..., 2^8] and 32 experiment repetitions.
 '''
+
 from collections import namedtuple
 import copy
 from datetime import datetime
@@ -30,7 +31,7 @@ dirs = namedtuple("dirs", "home seqan3 rangev3 sdsl")
 param = namedtuple("param", "REPEAT POW1 POW2")
 
 # result collector for single runs
-result_collector = namedtuple("result_collector", "binary seq_len runtime_avg runtime_stddev max_resident_set_size code")
+result_collector = namedtuple("result_collector", "binaries seq_len_list runtime_avg_list runtime_stddev_list max_resident_set_sizes code")
 
 # seqan3 data types to test, dna4 = seqan3::dna4, dna4_compressed = seqan3::bitcompressed_vector<dna4>
 base_types = ['dna4', 'dna4_compressed']  # 'dna15', 'dna4',
@@ -53,6 +54,9 @@ valgrind_cmd = "valgrind --tool=massif --massif-out-file={0} {1}"
 # measure heap consumption (MacOS, FreeBSD), 0: binary, 1: terminal output, 2: time output for heap profiling
 space_cmd = "(/usr/bin/time -l {0} 0) > {1} 2> {2}"
 
+# regex for extracting maximum resident heap size from 'time' command above
+size_rx = re.compile("^\s*(\d+)\s+maximum resident set size\s*$")
+
 # measure runtime by setting csv_flag for binary call, 0: binary, 1: terminal output for logging
 time_cmd = "{0} 1"
 
@@ -68,130 +72,181 @@ info = ["Gapped Sequence container<gapped>", "Gap Vector sdsl::sd_vector", "Gap 
 # sed command for in-place text substitutions
 sed = "sed -i.bak -e 's|<\[{}\]>|{}|g' -- ./src/{}"
 
+result_collector = namedtuple("result_collector", "binaries seq_len_list runtime_avg_list runtime_stddev_list max_resident_set_sizes code")
+
+# input: dictionary of result_collector objects
+def print_results(result_dict):
+    for id, item in result_dict:
+        print("RESULT: " + item.binaries[0])
+        header = "\t".join(["seq_len", "runtime avg [ns]", "runtime stddev [ns]", "maximum_resident_set_size"])
+        print(header + "\n" + "-"*len(header))
+        for seq_len, runtime_avg, runtime_stddev, max_resident_set_size in zip(item.seq_len_list, runtime_avg_list, runtime_stddev_list max_resident_set_sizes):
+            print("\t".join([str(seq_len), str(runtime_avg), str(runtime_stddev), str(max_resident_set_size)]))
+
 # compile single binary
 def compile(cmd):
     os.system(cmd)
 
-# compile in parallel
-def compile_parallel(compile_strings):
-    print("compile_strings = " + str(compile_strings))
+# compile in parallel, input [[str_run, strs_heap]], output [[binary_run, binaries_heap]]
+def compile_parallel(compile_string_llist):
+    print("compile_strings = " + str(compile_string_llist))
     binaries = []
     procs = []
-    for cmd in compile_strings:
+      # flatten
+    for i, compile_strings in enumerate(compile_string_llist):
+        compile_strings = [compile_strings[0]] + compile_strings[1:]
         print("next cmd: ")
-        print(cmd)
-        p = mp.Process(target=compile, args=(str(cmd),))
-        p.start()
-        procs.append(p)
-        print("proc " + str(p) + " with cmd = " + cmd)
+        procs_i = []
+        for cmd in compile_strings:
+            print(cmd)
+            p = mp.Process(target=compile, args=(str(cmd),))
+            p.start()
+            procs_i.append(p)
+            print("proc " + str(p) + " with cmd = " + cmd)
+        procs.append(procs_i)
     print(str(procs))
-    for id, p in enumerate(procs):
-        p.join()
-        # extract binary name from compilation command
-        binary_rx = re.compile("-o {}/(.+)$".format(src_dir))
-        search_obj = binary_rx.search(compile_strings[id])
-        if search_obj is None:
-            print("STATUS: Error - could not extract binary name")
-            sys.exit(-1)
-        print("search_obj = " + search_obj.group(1))
-        binaries.append(search_obj.group(1))
+    for i, procs_i in enumerate(procs):
+        binaries_i = []
+        for id, p in enumerate(procs_i):
+            p.join()
+            # extract binary name from compilation command
+            binary_rx = re.compile("-o {}/(.+)$".format(src_dir))
+            search_obj = binary_rx.search(compile_string_llist[i][id])
+            if search_obj is None:
+                print("STATUS: Error - could not extract binary name")
+                sys.exit(-1)
+            print("search_obj = " + search_obj.group(1))
+            binaries_i.append(search_obj.group(1))
+        binaries.append(binaries_i)
+    for binary in binaries:
+        print(binary)
     return binaries
 
-# run single binary twice, once for runtime performance and once for heap profiling
-def run(binary, id, return_dict):
-    #cmd = "{}".format(str(os.path.join(src_dir, binary)))  #, param.REPEAT, param.POW1, param.POW2)
-    #cmd = valgrind_cmd.format(str(os.path.join(result_dir, binary + ".massif.out")), str(os.path.join(src_dir, binary)))
-    path_to_binary = os.path.join(src_dir, binary)
-    path_to_space_log = os.path.join(log_dir, binary + ".space.log")
-    path_to_space_out = os.path.join(result_dir, binary + ".space.out")
-    #path_to_time_log = os.path.join(log_dir, binary + ".time.log")
-    path_to_time_out = os.path.join(result_dir, binary + ".csv")
-    if os.path.isfile(path_to_binary) is False:
-        print("STATUS: binary '" + binary + "' not found.")
-        return
-    cmd = space_cmd.format(str(path_to_binary), str(path_to_space_log), str(path_to_time_out))
-    # A. Profile heap
-    code = os.system(cmd)
+# runtime and heap profiling input [binary_run, binaries_heap]
+def run(binaries, id, return_dict):
     # collect heap profiling output
     rc = copy.copy(result_collector)
-    rc.binary = binary
-    # extract 'maximum resident set size'
-    with open(path_to_time_out, 'r') as f:
-        line = f.readlines()[1]
-        mobj = re.compile("^\s*(\d+)\s+maximum resident set size\s*$").match(line)
-        if mobj is None:
-            print("STATUS: Error - could not extract resident size from '" + str(path_to_time_out) + "'")
-            sys.exit(0)
-    rc.max_resident_set_size = int(mobj.group(1))
-    print("max set size: " + str(rc.max_resident_set_size))
-    # B. Measure runtimes
-    cmd = time_cmd.format(str(path_to_binary))
-    # high byte: binary exit code, low byte: signal num
-    code = os.system(cmd) >> 8
-    rc.code = code
-    # TODO: extract avg runtime and stddev
-    with open(path_to_time_out, 'r') as f:
-        line = f.readlines()[1].split(',')
-        rc.seq_len = int(line[0])
-        rc.runtime_avg = float(line[1])
-        rc.runtime_stddev = float(line[2])
-    print(rc.binary + ": \t" + "\t".join([str(rc.seq_len), str(rc.runtime_avg) + "\u00B1" + str(rc.runtime_stddev), str(rc.max_resident_set_size), str(rc.code)]))
-    sys.exit(0)
+    rc.binaries = []
+    rc.seq_len_list = []
+    rc.runtime_avg_list = []
+    rc.runtime_stddev_list = []
+    rc.max_resident_set_sizes = []
+    for i, binary in enumerate(binaries):
+        rc.binaries.append(binary)
+        path_to_binary = os.path.join(src_dir, binary)
+        if os.path.isfile(path_to_binary) is False:
+            print("ERROR: binary '" + binary + "' not found.")
+            return
+        if i == 0:  # case: profile runtimes
+            path_to_time_out = os.path.join(result_dir, binary + ".csv")
+            cmd = time_cmd.format(str(path_to_binary))
+            # high byte: binary exit code, low byte: signal num
+            code = os.system(cmd) >> 8
+            rc.code = code
+            # TODO: extract avg runtime and stddev
+            with open(path_to_time_out, 'r') as f:
+                for line in f.readlines()[1:]:
+                    line = line.strip().split(',')
+                    rc.seq_len_list.append(int(line[0]))
+                    rc.runtime_avg_list.append(float(line[1]))
+                    rc.runtime_stddev_list.append(float(line[2]))
+            print(rc.binaries[0] + ": \t" + "\t".join([str(rc.seq_len_list), str(rc.runtime_avg_list) + "\u00B1" + str(rc.runtime_stddev_list), str(rc.max_resident_set_sizes), str(rc.code)]))
+
+        else:   # case: profile heap
+            # space_cmd = "(/usr/bin/time -l {0} 0) > {1} 2> {2}"
+            path_to_space_log = os.path.join(log_dir, binary + ".space.log")
+            path_to_space_out = os.path.join(result_dir, binary + ".space.out")
+            cmd = space_cmd.format(str(path_to_binary), str(path_to_space_log), str(path_to_space_out))
+            print(cmd)
+            code = os.system(cmd)
+            print(code >> 8)
+            # extract 'maximum resident set size'
+            with open(path_to_space_out, 'r') as f:
+                line = f.readlines()[1]
+                mobj = size_rx.match(line)
+                if mobj is None:
+                    print("ERROR: Could not extract resident size from '" + str(path_to_time_out) + "'")
+                    sys.exit(0)
+            rc.max_resident_set_sizes.append(int(mobj.group(1)))
+            print("max set size: " + str(rc.max_resident_set_sizes[-1]))
+
+    print(rc.binaries)
+    print(rc.seq_len_list)
+    print(rc.runtime_avg_list)
+    print(rc.runtime_stddev_list)
+    print(rc.max_resident_set_sizes)
     return_dict[id] = rc
 
 # run binaries in parallel
-def run_parallel(binaries):
+# input: [[binary_run, binaries_heap]]
+def run_parallel(binary_llist):
     procs = []
     manager = mp.Manager()
     return_dict = manager.dict()
-    print(binaries)
-    for id, cmd in enumerate(binaries):
-        p = mp.Process(target=run, args=(cmd, id, return_dict))
-        print("STATUS: start " + cmd)
+    print(binary_llist)
+    for binary_list in binary_llist:
+        p = mp.Process(target=run, args=(binary_list, id, return_dict))
+        for binary in binary_list:
+            print("STATUS: start " + binary)
         p.start()
         procs.append(p)
-    for p in procs:
-        p.join()
+        for p in procs:
+            p.join()
     return return_dict
 
-# TODO: create one source files per sequence length!
+# create cpp files from template and compilation strings,
+# return format: [[compile_string_run, compile_strings_heap]]
 def generate_src_files(idx):
     # create seed for random number generator in benchmarks
     random.seed(datetime.now())
     seed = random.random()
-    src_files = []
+    compile_str_list = []
     for i, benchmark in enumerate(benchmarks[idx-1]):
         for base_type in base_types:
             for GAP_FLAG in range(2):
-                benchmark_name = benchmark + "_".join(["", base_type, "GAPFLAG", str(GAP_FLAG), "REPEAT", str(param.REPEAT), "POW1", str(param.POW1), "POW2", str(param.POW2)])
-                print(benchmark_name)
-                b = compile_str.replace("<home_dir>", dirs.home)
-                b = b.replace("<seqan3_dir>", dirs.seqan3)
-                b = b.replace("<rangev3_dir>", dirs.rangev3)
-                b = b.replace("<sdsl_dir>", dirs.sdsl)
-                b = b.replace("<benchmark_file>", benchmark)
-                b = b.replace("<benchmark>", benchmark_name)
+                benchmark_name_run = benchmark + "_".join(["", base_type, "GAPFLAG", str(GAP_FLAG), "RUN", "REPEAT", str(param.REPEAT), "POW1", str(param.POW1), "POW2", str(param.POW2)])
+                # one for each power of two with REPEAT=1
+                benchmark_names_heap = [benchmark + "_".join(["", base_type, "GAPFLAG", str(GAP_FLAG), "HEAP", "POW", str(pow)]) for pow in range(param.POW1, param.POW2+1)]
+                # TODO: use better run file for copying
+                print(benchmark_name_run)
+                print(benchmark_names_heap)
+
+                # cpp file names
+                cpp_file_run = benchmark_name_run + ".cpp"
+                cpp_files_heap = [benchmark_name + ".cpp" for benchmark_name in benchmark_names_heap]
+
+                # build individual compile strings
+                compile_str_new = compile_str.replace("<home_dir>", dirs.home)
+                compile_str_new = compile_str_new.replace("<seqan3_dir>", dirs.seqan3)
+                compile_str_new = compile_str_new.replace("<rangev3_dir>", dirs.rangev3)
+                compile_str_new = compile_str_new.replace("<sdsl_dir>", dirs.sdsl)
+                compile_str_new = compile_str_new.replace("<benchmark_file>", benchmark)
+                compile_str_run = compile_str_new.replace("<benchmark>", benchmark_name_run)
+                compile_str_run = compile_str_run.replace("<cpp_file>", cpp_file_run)
+                compile_strs_heap = [compile_str_new.replace("<benchmark>", benchmark_name) for benchmark_name in benchmark_names_heap]
+                compile_strs_heap = [compile_str_heap.replace("<cpp_file>", cpp_file) for compile_str_heap, cpp_file in zip(compile_strs_heap, cpp_files_heap)]
+
+                print(compile_str_run)
+                for c in compile_strs_heap:
+                    print(c)
+                compile_str_list.append([compile_str_run] + compile_strs_heap)
 
                 template_file = "benchmark{}.template.cpp".format(idx)
                 # substitute datatype in template cpp file
                 if (os.path.isfile(template_file) == False):
                     print("Error: file '" + template_file + "' not in current directory.")
                     sys.exit(1)
-                print("GAP flag = " + str(GAP_FLAG))
-                print("benchmark = " + benchmark + "\nbase_type = " + base_type)
-                #benchmark_name = benchmark + "_" + alphabet_type + "_" + str(GAP_FLAG)
+
                 # copy template
-                cpp_file = benchmark_name + ".cpp"
-                copyfile(template_file, os.path.join(src_dir, cpp_file))
-                print("cpp_file = " + cpp_file)
-                b = b.replace("<cpp_file>", cpp_file)
-                print(b)
+                template_file_new = cpp_file_run
+                copyfile(template_file, os.path.join(src_dir, template_file_new))
+
                 # print info string
-                sed_cmd = sed.format("info", "auto-generated benchmark", cpp_file)
+                sed_cmd = sed.format("info", "auto-generated benchmark", template_file_new)
                 print(sed_cmd)
                 os.system(sed_cmd)
                 # set seed
-                sed_cmd = sed.format("seed", seed, cpp_file)
+                sed_cmd = sed.format("seed", seed, template_file_new)
                 os.system(sed_cmd)
 
                 # substitute datatype in file
@@ -201,13 +256,13 @@ def generate_src_files(idx):
                 letter_A = "alphabet_type::A"
                 if i is 0:  #  ="Gapped Sequence":
                     letter_A = "alphabet_type{{{}::A}}".format(alphabet_type)
-                sed_cmd = sed.format("letter_A", letter_A, cpp_file)
+                sed_cmd = sed.format("letter_A", letter_A, template_file_new)
                 print(sed_cmd)
                 os.system(sed_cmd)
                 # substitute underlying sequence data type
-                sed_cmd = sed.format("alphabet_type", alphabet_type, cpp_file)
+                sed_cmd = sed.format("alphabet_type", alphabet_type, template_file_new)
                 if i is 0:  # = "Gapped Sequence"
-                    sed_cmd = sed.format("alphabet_type", "gapped<{}>".format(alphabet_type), cpp_file)
+                    sed_cmd = sed.format("alphabet_type", "gapped<{}>".format(alphabet_type), template_file_new)
                 print(sed_cmd)
                 os.system(sed_cmd)
                 # substitute value_type
@@ -216,7 +271,7 @@ def generate_src_files(idx):
                 if i == 0:
                     value_type = "gapped<{}>".format(value_type)
                 print("value_type = " + value_type)
-                sed_cmd = sed.format("value_type", value_type, cpp_file)
+                sed_cmd = sed.format("value_type", value_type, template_file_new)
                 print(sed_cmd)
                 os.system(sed_cmd)
 
@@ -225,47 +280,66 @@ def generate_src_files(idx):
                 if base_type.endswith("_compressed") == True:
                     container_type = "seqan3::bitcompressed_vector<{}>"
                 print("container_type = " + container_type.format(value_type))
-                sed_cmd = sed.format("container_type", container_type.format(value_type), cpp_file)
+                sed_cmd = sed.format("container_type", container_type.format(value_type), template_file_new)
                 os.system(sed_cmd)
 
                 # substitute gap_decorator
                 gap_decorator = gap_decorators[i]
-                sed_cmd = sed.format("gap_decorator", gap_decorator, cpp_file)
+                sed_cmd = sed.format("gap_decorator", gap_decorator, template_file_new)
                 os.system(sed_cmd)
 
-                # substitute output filename
-                result_file = os.path.join(result_dir, benchmark_name + ".csv")
-                print("result file name: " + result_file)
-                sed_cmd = sed.format("benchmark.csv", result_file, cpp_file)
+                # substitute LOG_LEVEL macro
+                sed_cmd = sed.format("LOG_LEVEL", abs(hash(benchmark_name_run)) % 10**8, template_file_new)
                 os.system(sed_cmd)
                 print(sed_cmd)
 
-                # substitute LOG_LEVEL macro
-                sed_cmd = sed.format("LOG_LEVEL", abs(hash(benchmark_name)) % 10**8, cpp_file)
+                # set GAP_FLAG
+                sed_cmd = sed.format("GAP_FLAG", GAP_FLAG, template_file_new)
+                os.system(sed_cmd)
+
+                # distribute current copy (note: cpp_file_run is identical with template_file_new up to here)
+                for cpp_file in cpp_files_heap:
+                    copyfile(os.path.join(src_dir, template_file_new), os.path.join(src_dir, cpp_file))
+                    print("copied " + str(cpp_file))
+
+                # substitute output filename
+                result_file_run = os.path.join(result_dir, benchmark_name_run + ".csv")
+                print("result file name: " + result_file_run)
+                sed_cmd = sed.format("benchmark.csv", result_file_run, template_file_new)
                 os.system(sed_cmd)
                 print(sed_cmd)
 
                 # substitute benchmark name
-                sed_cmd = sed.format("benchmark", benchmark_name, cpp_file)
+                sed_cmd = sed.format("benchmark", benchmark_name_run, cpp_file_run)
                 os.system(sed_cmd)
                 print(sed_cmd)
+                for cpp_file, benchmark_name in zip(cpp_files_heap, benchmark_names_heap):
+                    sed_cmd = sed.format("benchmark", benchmark_name, cpp_file)
+                    os.system(sed_cmd)
+                    print(sed_cmd)
 
                 # substitute sequence length range as power of 2 and number of experiment repetitions
-                sed_cmd = sed.format("POW1", param.POW1, cpp_file)
+                sed_cmd = sed.format("POW1", param.POW1, cpp_file_run)
                 os.system(sed_cmd)
-                sed_cmd = sed.format("POW2", param.POW2, cpp_file)
-                os.system(sed_cmd)
-                sed_cmd = sed.format("REPEAT", param.REPEAT, cpp_file)
+                sed_cmd = sed.format("POW2", param.POW2, cpp_file_run)
                 os.system(sed_cmd)
 
-                # set GAP_FLAG
-                sed_cmd = sed.format("GAP_FLAG", GAP_FLAG, cpp_file)
+                # note: for heap runs pow1 = pow2
+                sed_cmds = [sed.format("POW1", p, cpp_file) for p, cpp_file in zip(range(param.POW1, param.POW2 + 1), cpp_files_heap)]
+                [os.system(sed_cmd) for sed_cmd in sed_cmds]
+                sed_cmds = [sed.format("POW2", p, cpp_file) for p, cpp_file in zip(range(param.POW1, param.POW2 + 1), cpp_files_heap)]
+                [os.system(sed_cmd) for sed_cmd in sed_cmds]
+
+                # set REPEAT=1 for heap runs, REPEAT range for runtime version
+                sed_cmd = sed.format("REPEAT", param.REPEAT, cpp_file_run)
                 os.system(sed_cmd)
-                src_files.append(b)
-                break
+
+                sed_cmds = [sed.format("REPEAT", 1, cpp_file) for cpp_file in cpp_files_heap]
+                [os.system(sed_cmd) for sed_cmd in sed_cmds]
             break
         break
-    return src_files
+    os.system("rm ./src/*.bak")
+    return compile_str_list
 
 if __name__ == "__main__":
     if len(sys.argv) != 9:
@@ -279,20 +353,19 @@ if __name__ == "__main__":
         param.POW1 = int(sys.argv[7])
         param.POW2 = int(sys.argv[8])
         print("STATUS: Generate source files ...")
-        src_files = generate_src_files(int(sys.argv[1]))
-        for src_file in src_files:
-            print("\t" + src_file)
+        compile_string_llist = generate_src_files(int(sys.argv[1]))
+        for compile_string_list in compile_string_llist:
+            print(compile_string_list)
+            for f in compile_string_list:
+                print(f)
+            print("\n")
         print("STATUS: Done\nSTATUS: Compile source files ...")
-        binaries = compile_parallel(src_files)
+        binaries = compile_parallel(compile_string_llist)
         print(binaries)
         #sys.exit(0)
         print("STATUS: Done\nSTATUS: Execute binaries in parallel ...")
-        return_codes = run_parallel(binaries)
-        for id, code in return_codes.items():
-            if code != 1:
-                print("STATUS: " + binaries[id] + " aborted with return code " + str(code) + ".")
-            else:
-                print("STATUS: Results for " + binaries[id] + " are written to ./results/" + binaries[id] + ".csv")
+        result_dict = run_parallel(binaries)
+        print_results(result_dict)
         # delete backup files
         for fn in [fn for fn in os.listdir(src_dir) if fn.endswith(".bak")]:
             os.remove(os.path.join(src_dir, fn))
