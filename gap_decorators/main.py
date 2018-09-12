@@ -30,9 +30,6 @@ dirs = namedtuple("dirs", "home seqan3 rangev3 sdsl")
 # POW1, POW2: sequence length ranges from [2**POW1, 2**(POW1+1), ..., 2**(POW2)]
 param = namedtuple("param", "REPEAT POW1 POW2")
 
-# result collector for single runs
-result_collector = namedtuple("result_collector", "binaries seq_len_list runtime_avg_list runtime_stddev_list max_resident_set_sizes code")
-
 # seqan3 data types to test, dna4 = seqan3::dna4, dna4_compressed = seqan3::bitcompressed_vector<dna4>
 base_types = ['dna4', 'dna4_compressed']  # 'dna15', 'dna4',
 
@@ -72,16 +69,27 @@ info = ["Gapped Sequence container<gapped>", "Gap Vector sdsl::sd_vector", "Gap 
 # sed command for in-place text substitutions
 sed = "sed -i.bak -e 's|<\[{}\]>|{}|g' -- ./src/{}"
 
-result_collector = namedtuple("result_collector", "binaries seq_len_list runtime_avg_list runtime_stddev_list max_resident_set_sizes code")
-
-# input: dictionary of result_collector objects
+# input: dictionary of type <class 'multiprocessing.managers.DictProxy'>
+# 0: binaries
+# 1: seq_len_list
+# 2: runtime_avg_list
+# 3: runtime_stddev_list
+# 4: max_resident_set_sizes
+# 5: return code
 def print_results(result_dict):
-    for id, item in result_dict:
-        print("RESULT: " + item.binaries[0])
+    print(type(result_dict))
+    d = dict(result_dict)
+    print(type(d))
+    print(d.items())
+    print(iter(d.keys()))
+    for id, item in d.items():
+        print(id)
+        print(item)
+        print("RESULT: " + item[0][0])
         header = "\t".join(["seq_len", "runtime avg [ns]", "runtime stddev [ns]", "maximum_resident_set_size"])
         print(header + "\n" + "-"*len(header))
-        for seq_len, runtime_avg, runtime_stddev, max_resident_set_size in zip(item.seq_len_list, runtime_avg_list, runtime_stddev_list max_resident_set_sizes):
-            print("\t".join([str(seq_len), str(runtime_avg), str(runtime_stddev), str(max_resident_set_size)]))
+        for seq_len, runtime_avg, runtime_stddev, max_resident_set_size in zip(item[1], item[2], item[3], item[4]):
+            print("\t\t".join([str(seq_len), str(runtime_avg), str(runtime_stddev), str(max_resident_set_size)]))
 
 # compile single binary
 def compile(cmd):
@@ -125,14 +133,15 @@ def compile_parallel(compile_string_llist):
 # runtime and heap profiling input [binary_run, binaries_heap]
 def run(binaries, id, return_dict):
     # collect heap profiling output
-    rc = copy.copy(result_collector)
-    rc.binaries = []
-    rc.seq_len_list = []
-    rc.runtime_avg_list = []
-    rc.runtime_stddev_list = []
-    rc.max_resident_set_sizes = []
+    # 0: binaries
+    # 1: seq_len_list
+    # 2: runtime_avg_list
+    # 3: runtime_stddev_list
+    # 4: max_resident_set_sizes
+    # 5: return code
+    rc = [[] for _ in range(6)]
     for i, binary in enumerate(binaries):
-        rc.binaries.append(binary)
+        rc[0].append(binary)
         path_to_binary = os.path.join(src_dir, binary)
         if os.path.isfile(path_to_binary) is False:
             print("ERROR: binary '" + binary + "' not found.")
@@ -142,15 +151,15 @@ def run(binaries, id, return_dict):
             cmd = time_cmd.format(str(path_to_binary))
             # high byte: binary exit code, low byte: signal num
             code = os.system(cmd) >> 8
-            rc.code = code
+            rc[5] = code
             # TODO: extract avg runtime and stddev
             with open(path_to_time_out, 'r') as f:
                 for line in f.readlines()[1:]:
                     line = line.strip().split(',')
-                    rc.seq_len_list.append(int(line[0]))
-                    rc.runtime_avg_list.append(float(line[1]))
-                    rc.runtime_stddev_list.append(float(line[2]))
-            print(rc.binaries[0] + ": \t" + "\t".join([str(rc.seq_len_list), str(rc.runtime_avg_list) + "\u00B1" + str(rc.runtime_stddev_list), str(rc.max_resident_set_sizes), str(rc.code)]))
+                    rc[1].append(int(line[0]))
+                    rc[2].append(float(line[1]))
+                    rc[3].append(float(line[2]))
+            print(rc[0][0] + ": \t" + "\t".join([str(rc[1]), str(rc[2]) + "\u00B1" + str(rc[3]), str(rc[4]), str(rc[5])]))
 
         else:   # case: profile heap
             # space_cmd = "(/usr/bin/time -l {0} 0) > {1} 2> {2}"
@@ -167,14 +176,14 @@ def run(binaries, id, return_dict):
                 if mobj is None:
                     print("ERROR: Could not extract resident size from '" + str(path_to_time_out) + "'")
                     sys.exit(0)
-            rc.max_resident_set_sizes.append(int(mobj.group(1)))
-            print("max set size: " + str(rc.max_resident_set_sizes[-1]))
+            rc[4].append(int(mobj.group(1)))
+            print("max set size: " + str(rc[4][-1]))
 
-    print(rc.binaries)
-    print(rc.seq_len_list)
-    print(rc.runtime_avg_list)
-    print(rc.runtime_stddev_list)
-    print(rc.max_resident_set_sizes)
+    print(rc[0])
+    print(rc[1])
+    print(rc[2])
+    print(rc[3])
+    print(rc[4])
     return_dict[id] = rc
 
 # run binaries in parallel
@@ -183,6 +192,7 @@ def run_parallel(binary_llist):
     procs = []
     manager = mp.Manager()
     return_dict = manager.dict()
+
     print(binary_llist)
     for binary_list in binary_llist:
         p = mp.Process(target=run, args=(binary_list, id, return_dict))
