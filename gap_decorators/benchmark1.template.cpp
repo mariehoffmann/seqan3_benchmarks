@@ -18,7 +18,8 @@
 
 #include "../anchor_list.hpp"
 #include "../anchor_set.hpp"
-#include "../gap_vector.hpp"
+#include "../gap_vector_bit.hpp"
+#include "../gap_vector_sd.hpp"
 #include "../gapped_sequence.hpp"
 #include "../utilities.hpp"
 
