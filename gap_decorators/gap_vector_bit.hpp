@@ -37,7 +37,9 @@ namespace seqan3 {
         //!\brief Type of the 0 select support data structure.
         using select_0_support_t      = sdsl::select_support_mcl<0>;  //bit_vector_t::select_0_type;
         //!\brief Type of the 1 select support data structure.
+        // space .2*n, access O(1), alternative: select_support_scan space 64 bits, access O(n)
         using select_1_support_t      = sdsl::select_support_mcl<1>;  //bit_vector_t::select_0_type;
+        // TODO: adjust builder function
 
     public:
         //!\publicsection
@@ -109,8 +111,7 @@ namespace seqan3 {
         //shared_ptr<data_t>
         constexpr aligned_sequence_adaptor_constant_access(inner_type * sequence): data{new data_t{sequence}}
         {
-            sdsl::sd_vector_builder builder(sequence->size(), 0);
-            data->gap_vector = bit_vector_t(builder);
+            data->gap_vector = bit_vector_t(data->sequence->size(), 0);
         };
         //!\}
 
@@ -240,43 +241,21 @@ namespace seqan3 {
                 return false;
             if (data->dirty)
                 update_support_structures();
-
-            // 00011111001111100000000000       after (11,4) before (13,1)
-            // 01234567890123456789012345
-
-            //enter insert_gap with pos = 13, and size = 1
-            //init builder with new amount of set bits: 11      correct
-            //iterate over suffix from i = 25 to 14
-
             // rank queries on empty sd_vector throws assertion
             size_type m = (!this->size()) ? size : data->rank_1_support.rank(this->size()) + size;
             if (LOG_LEVEL_GV) std::cout << "init builder with new amount of set bits: " << m << std::endl;
-            sdsl::sd_vector_builder builder = sdsl::sd_vector_builder(this->size() + size, m);
-            // copy prefix
-            for (size_type i = 0; i < pos; ++i)
-                if (data->gap_vector[i])
-                    builder.set(i);
-            // insert gap
-            for (size_type i = pos; i < pos+size; ++i){
-                if (LOG_LEVEL_GV) std::cout << "set new gap bit at pos " << pos << std::endl;
-                builder.set(i);
-            }
+            data->bit_vector.resize(this->size() + size);
+
             // shift suffix, note that we need i to be a signed integer for the case
             // that the aligned sequence was empty
             if (LOG_LEVEL_GV) std::cout << "iterate over suffix from i = " << this->size() - 1 << " to " << static_cast<signed int>(pos) << std::endl;
-            for (size_t i = pos; i < this->size(); ++i)
-            {
-                if (LOG_LEVEL_GV) std::cout << "current i = " << i << std::endl;
-                if (data->gap_vector[i]){
-                    if (LOG_LEVEL_GV) std::cout << "\tbit set at " << i+size << std::endl;
-                    builder.set(i+size);
-                }
-            }
-            // TODO: there is a bug here, either bits not correctly set, or copying goes wrong
-            // either evoked here: sd_vector: the builder is not full. or in erase (due to resizing)
-            data->gap_vector = bit_vector_t(builder);
-            // TODO: delete old one?
-            data->dirty = true;
+            for (size_t i = this->size()-1; i >= pos; --i)
+                data->gap_vector.set_int(i+size, data->gap_vector[i]);
+
+            // insert gap
+            for (size_type i = pos; i < pos+size; ++i)
+                data->gap_vector.set_int(i, 1);
+
             if (LOG_LEVEL_GV)
             {
                 std::cout << "gap vector after insertion: ";
@@ -319,24 +298,13 @@ namespace seqan3 {
                 return false;
             if (data->dirty)
                 update_support_structures();
-            // number of deleted gaps
-            size_type m_del = data->rank_1_support.rank(pos2) - data->rank_1_support.rank(pos1);
-            assert(m_del == 1);
-            // current number of gaps
-            size_type m = data->rank_1_support.rank(this->size());
-            sdsl::sd_vector_builder builder{this->size() - m_del, m - m_del};
-            // copy prefix
-            for (size_type i = 1; i <= m && data->select_1_support.select(i) < pos1; ++i){
-            //    std::cout << "should not enter here\n";
-                builder.set(data->select_1_support.select(i));
-            }
+
             // shift suffix at it2 by the size_type m_del it2-it1
-            size_type j = data->rank_1_support.rank(pos2) + 1;
-            for (size_type i = j; i <= m; ++i)
-                builder.set(data->select_1_support.select(i) - m_del);
-            // reset bit_vector
-            // or evoked here: sd_vector: the builder is not full.
-            data->gap_vector = bit_vector_t{builder};
+            size_type pos_del = pos2 - pos1;
+            for (size_type i = pos1; i < std::min<size_type>(this->size(), pos2); ++i)
+                data->gap_vector.set_int(i, data->gap_vector[i - pos_del]);
+
+            data->gap_vector.resize(this->size() - pos_del);
             data->dirty = true;
             return true;
         }
@@ -358,15 +326,7 @@ namespace seqan3 {
         void push_back()
         {
             assert(max_size() >= size() + 1);
-            //data->gap_vector.resize(this->size() + 1);
-            if (data->dirty)
-                update_support_structures();
-            size_type m = data->rank_1_support.rank(this->size());
-            sdsl::sd_vector_builder builder(this->size() + 1, m + 1);
-            for (size_type i = 1; i <= m; ++i)
-                builder.set(data->select_1_support.select(i));
-            builder.set(this->size());  // set last bit to 1
-            data->gap_vector = bit_vector_t(builder);
+            data->gap_vector.resize(this->size() + 1, 1);
             data->dirty = true;
         }
 
@@ -381,20 +341,15 @@ namespace seqan3 {
             assert(this->size() > 0);
             if (!data->gap_vector[size() - 1])
                 return false;
-            if (data->dirty)
-                update_support_structures();
-            size_type m = data->rank_1_support.rank(this->size() - 1);
-            sdsl::sd_vector_builder builder(this->size()-1, m);
-            for (size_type i = 1; i <= m; ++i)
-                builder.set(data->select_1_support.select(i));
-            data->gap_vector = bit_vector_t(builder);
+            data->gap_vector.resize(this->size() - 1);
+            data->dirty = true
             return true;
         }
 
         //!\brief Clear gaps in bit vector. Alphabet sequence remains unchanged.
         void clear()
         {
-            data->gap_vector = bit_vector_t(sdsl::bit_vector{data->sequence->size(), 0});
+            data->gap_vector.assign(data->sequence->size(), 0);
             data->dirty = true;
         }
 
@@ -426,7 +381,7 @@ namespace seqan3 {
         void set_underlying_sequence(inner_type * sequence) const
         {
             data->sequence = sequence;
-            data->gap_vector = bit_vector_t(sdsl::bit_vector{sequence->size(), 0});
+            data->gap_vector.assign(sequence->size(), 0);
             data->dirty = true;
         }
         //!\}
@@ -440,7 +395,6 @@ namespace seqan3 {
          */
         size_type map_to_aligned_position(size_type const idx)
         {
-            //TODO add SEQAN_UNLIKELY
             if (idx >= size())
                 throw std::out_of_range{"Trying to access element behind the last in aligned_sequence."};
             if (data->dirty)
@@ -485,7 +439,6 @@ namespace seqan3 {
         //!\brief Return reference to aligned sequence for given index.
         value_type at(size_type const idx)
         {
-            //TODO add SEQAN_UNLIKELY
             if (idx >= size())
                 throw std::out_of_range{"Trying to access element behind the last in aligned_sequence."};
             return (value_type)(*this)[idx];
@@ -503,20 +456,13 @@ namespace seqan3 {
                 if ((value_type)(*this)[pos] == gap::GAP)
                 {
                     erase_gap(pos);
-                    //std::cout << "current size = " << this->size() << std::endl;
                 }
                 else
                 {
                     data->sequence->resize(data->sequence->size() - 1);
-                    /*
-                    sdsl::sd_vector_builder builder(this->size()-1, m);
-                    for (size_type i = 1; i <= m; ++i)
-                        builder.set(data->select_1_support.select(i));
-                    data->gap_vector = bit_vector_t(builder);
-
-                    update_support_structures();*/
                 }
             }
+            data->gap_vector.resize(new_size);
             if (LOG_LEVEL_GV) std::cout << "... final size = " << this->size() << std::endl;
             return true;
         }
@@ -576,9 +522,9 @@ namespace seqan3 {
         //!\brief Re-initialize rank and select support structures of bit_vector.
         void update_support_structures()
         {
-            data->rank_1_support = sdsl::rank_support_sd<1>(&data->gap_vector);
-            data->select_0_support = sdsl::select_support_sd<0>(&data->gap_vector);
-            data->select_1_support = sdsl::select_support_sd<1>(&data->gap_vector);
+            data->rank_1_support = sdsl::rank_support_v5<1>(&data->gap_vector);
+            data->select_0_support = sdsl::select_support_mcl<0>(&data->gap_vector);
+            data->select_1_support = sdsl::select_support_mcl<1>(&data->gap_vector);
             data->dirty = false;
         }
     };
