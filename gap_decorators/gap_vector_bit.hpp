@@ -5,16 +5,17 @@
 #include <type_traits>
 #include <vector>
 
-#include <seqan3/alphabet/concept.hpp>
+//#include <seqan3/alphabet/concept.hpp>
 #include <seqan3/alphabet/gap/gapped.hpp>
-//#include <seqan3/range/container/concept.hpp>
 #include <seqan3/range/all.hpp>
 #include <seqan3/range/detail/random_access_iterator.hpp>
 
 #include <sdsl/int_vector.hpp>
+#include <sdsl/rank_support_v5.hpp>
+#include <sdsl/select_support_mcl.hpp>
 #include <sdsl/util.hpp>
 
-#define LOG_LEVEL_GV 0
+#define LOG_LEVEL_GV_BIT 0
 
 namespace seqan3 {
 
@@ -23,17 +24,17 @@ namespace seqan3 {
     requires alphabet_concept<ranges::v3::value_type_t<inner_type>>
     // see doc, in namespace std and renamed: && random_access_range_concept<inner_type> && sized_range_concept<inner_type>
     //!\endcond
-    struct aligned_sequence_adaptor_constant_access
+    struct gap_vector_bit
     {
 
     private:
         //!\privatesection
-        using aligned_sequence_t    = aligned_sequence_adaptor_constant_access;
+        using aligned_sequence_t    = gap_vector_bit;
         //using alphabet_t = typename ranges::v3::value_type_t<inner_type>::alphabet_type;
         //!\brief Type of the bit-vector.
-        using bit_vector_t          = sdsl::bit_vector<>;
+        using bit_vector_t          = sdsl::bit_vector;
         //!\brief Type of the rank support data structure.
-        using rank_1_support_t        = sdsl::rank_support_v5<1>;     // bit_vector_t::rank_1_type;
+        using rank_1_support_t        = sdsl::rank_support_v5<1, 1>;     // bit_vector_t::rank_1_type;
         //!\brief Type of the 0 select support data structure.
         using select_0_support_t      = sdsl::select_support_mcl<0>;  //bit_vector_t::select_0_type;
         //!\brief Type of the 1 select support data structure.
@@ -82,25 +83,25 @@ namespace seqan3 {
          * \{
          */
         // \brief Default constructor.
-        constexpr aligned_sequence_adaptor_constant_access()
+        constexpr gap_vector_bit()
         {
             data = std::shared_ptr<data_t>(new data_t{});
         };
 
         //!\brief Default copy constructor.
-        constexpr aligned_sequence_adaptor_constant_access(aligned_sequence_adaptor_constant_access const &) = default;
+        constexpr gap_vector_bit(gap_vector_bit const &) = default;
 
         //!\brief Default copy construction via assignment.
-        constexpr aligned_sequence_adaptor_constant_access & operator=(aligned_sequence_adaptor_constant_access const &) = default;
+        constexpr gap_vector_bit & operator=(gap_vector_bit const &) = default;
 
         //!\brief Move constructor.
-        constexpr aligned_sequence_adaptor_constant_access (aligned_sequence_adaptor_constant_access && rhs) = default;
+        constexpr gap_vector_bit (gap_vector_bit && rhs) = default;
 
         //!\brief Move assignment.
-        constexpr aligned_sequence_adaptor_constant_access & operator=(aligned_sequence_adaptor_constant_access && rhs) = default;
+        constexpr gap_vector_bit & operator=(gap_vector_bit && rhs) = default;
 
         //!\brief Use default deconstructor.
-        ~aligned_sequence_adaptor_constant_access() = default;
+        ~gap_vector_bit() = default;
         //!\}
 
         //!\brief
@@ -109,7 +110,7 @@ namespace seqan3 {
          */
         //!\brief Construct by single value repeated 'size' times
         //shared_ptr<data_t>
-        constexpr aligned_sequence_adaptor_constant_access(inner_type * sequence): data{new data_t{sequence}}
+        constexpr gap_vector_bit(inner_type * sequence): data{new data_t{sequence}}
         {
             data->gap_vector = bit_vector_t(data->sequence->size(), 0);
         };
@@ -177,17 +178,13 @@ namespace seqan3 {
         {
             // either keep it uptodate, also when resizing underlying sequence (del 0s!) or use rank
             // return data->gap_vector.size();
+            if (LOG_LEVEL_GV_BIT) std::cout << "SIZE: query dirty bit ..\n";
             if (data->dirty)
                 update_support_structures();
-
-            if (LOG_LEVEL_GV)
-            {
-                std::cout << "enter size ...\n";
-            std::cout << "is dirty = " << data->dirty << std::endl;
-            std::cout << "data->gap_vector.size() = " << data->gap_vector.size() << std::endl;
-            std::cout << "data->rank_1_support.rank(1) = " <<  data->rank_1_support.rank(0) << std::endl;
-            }
-            return data->rank_1_support.rank(data->gap_vector.size()-1) + data->sequence->size();
+            //auto s = data->rank_1_support.rank(data->gap_vector.size()-1) + data->sequence->size();
+            auto s = data->gap_vector.size();
+            if (LOG_LEVEL_GV_BIT) std::cout << "SIZE: s = " << s << std::endl;
+            return s;
         }
 
         /*!\brief Return the maximal aligned sequence length.
@@ -236,30 +233,39 @@ namespace seqan3 {
          */
         bool insert_gap(size_type const pos, size_type const size=1)
         {
-            if (LOG_LEVEL_GV) std::cout << "enter insert_gap with pos = " << pos << ", and size = " << size << std::endl;
+            if (LOG_LEVEL_GV_BIT) std::cout << "INSERT_GAP: enter insert_gap with pos = " << pos << ", and size = " << size << std::endl;
             if (pos > this->size())
                 return false;
+
             if (data->dirty)
                 update_support_structures();
             // rank queries on empty sd_vector throws assertion
-            size_type m = (!this->size()) ? size : data->rank_1_support.rank(this->size()) + size;
-            if (LOG_LEVEL_GV) std::cout << "init builder with new amount of set bits: " << m << std::endl;
-            data->bit_vector.resize(this->size() + size);
-
+            difference_type old_size = this->size();
+            data->gap_vector.resize(this->size() + size);
             // shift suffix, note that we need i to be a signed integer for the case
             // that the aligned sequence was empty
-            if (LOG_LEVEL_GV) std::cout << "iterate over suffix from i = " << this->size() - 1 << " to " << static_cast<signed int>(pos) << std::endl;
-            for (size_t i = this->size()-1; i >= pos; --i)
-                data->gap_vector.set_int(i+size, data->gap_vector[i]);
+            if (LOG_LEVEL_GV_BIT)
+            {
+                std::cout << "INSERT_GAP: iterate over suffix from i = " << this->size() - 1 << " to " << static_cast<signed int>(pos) << std::endl;
+                std::cout << "resized gap vector length is " << data->gap_vector.size() << std::endl;
+                std::cout << "shift suffix from range [" << pos << ":" << old_size << "]\n";
+            }
+            for (difference_type i = old_size-1; i >= static_cast<difference_type>(pos); --i)
+            {
+                if (LOG_LEVEL_GV_BIT) std::cout << "copy " << data->gap_vector[i] << " from " << i << " to " << i+size << std::endl;
+                data->gap_vector[i+size] = data->gap_vector[i];
+            }
 
             // insert gap
+            if (LOG_LEVEL_GV_BIT) std::cout << "insert gap in range [" << pos << ":" << pos+size-1 << std::endl;
             for (size_type i = pos; i < pos+size; ++i)
-                data->gap_vector.set_int(i, 1);
-
-            if (LOG_LEVEL_GV)
             {
-                std::cout << "gap vector after insertion: ";
-                for (auto bit : data->gap_vector) std::cout << bit;
+                data->gap_vector[i] = 1;
+            }
+            if (LOG_LEVEL_GV_BIT)
+            {
+                std::cout << "INSERT_GAP: gap vector after insertion: ";
+                for (size_type i = 0; i < this->size(); ++i) std::cout << data->gap_vector[i];
                 std::cout << std::endl;
             }
             return true;
@@ -292,8 +298,7 @@ namespace seqan3 {
         // right-hand of 2nd iterator are shifted by the number of gaps deleted.
         bool erase_gap(size_type const pos1, size_type const pos2)
         {
-            assert(pos1 <= pos2);
-            //std::cout << "enter erase_gap with pos1 = " << pos1 << ", pos2 = " << pos2 << std::endl;
+            assert(pos1 <= pos2 && pos2 <= this->size());
             if (pos1 >= size() || pos2 > size())
                 return false;
             if (data->dirty)
@@ -301,9 +306,10 @@ namespace seqan3 {
 
             // shift suffix at it2 by the size_type m_del it2-it1
             size_type pos_del = pos2 - pos1;
-            for (size_type i = pos1; i < std::min<size_type>(this->size(), pos2); ++i)
-                data->gap_vector.set_int(i, data->gap_vector[i - pos_del]);
+            for (size_type i = pos1; i < this->size() - pos_del; ++i)
+                data->gap_vector[i] = data->gap_vector[i + pos_del];
 
+            if (LOG_LEVEL_GV_BIT) std::cout << "resize: with new size = " << this->size() - pos_del << std::endl;
             data->gap_vector.resize(this->size() - pos_del);
             data->dirty = true;
             return true;
@@ -342,7 +348,7 @@ namespace seqan3 {
             if (!data->gap_vector[size() - 1])
                 return false;
             data->gap_vector.resize(this->size() - 1);
-            data->dirty = true
+            data->dirty = true;
             return true;
         }
 
@@ -447,12 +453,12 @@ namespace seqan3 {
 
         bool resize(size_type new_size)
         {
-            if (LOG_LEVEL_GV) std::cout << "start resizing ... ";
+            if (LOG_LEVEL_GV_BIT) std::cout << "start resizing ... ";
             assert(new_size <= this->size());
             //assert(data->sequence->size() > 0);
             for (auto pos = this->size() - 1; pos >= new_size; --pos)
             {
-                if (LOG_LEVEL_GV) std::cout << "current pos = " << pos << ", gseq[pos] = " << (value_type)(*this)[pos] << std::endl;
+                if (LOG_LEVEL_GV_BIT) std::cout << "current pos = " << pos << ", gseq[pos] = " << (value_type)(*this)[pos] << std::endl;
                 if ((value_type)(*this)[pos] == gap::GAP)
                 {
                     erase_gap(pos);
@@ -463,7 +469,7 @@ namespace seqan3 {
                 }
             }
             data->gap_vector.resize(new_size);
-            if (LOG_LEVEL_GV) std::cout << "... final size = " << this->size() << std::endl;
+            if (LOG_LEVEL_GV_BIT) std::cout << "... final size = " << this->size() << std::endl;
             return true;
         }
 
@@ -531,7 +537,7 @@ namespace seqan3 {
 
     //!\brief Global swap function.
     template <typename inner_type, char gap_symbol = '_'>
-    void swap (aligned_sequence_adaptor_constant_access<inner_type> & lhs, aligned_sequence_adaptor_constant_access<inner_type> & rhs)
+    void swap (gap_vector_bit<inner_type> & lhs, gap_vector_bit<inner_type> & rhs)
     {
         lhs.swap(rhs);
     }

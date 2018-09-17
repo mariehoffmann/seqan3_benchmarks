@@ -23,12 +23,12 @@ namespace seqan3 {
     requires alphabet_concept<ranges::v3::value_type_t<inner_type>>
     // see doc, in namespace std and renamed: && random_access_range_concept<inner_type> && sized_range_concept<inner_type>
     //!\endcond
-    struct aligned_sequence_adaptor_constant_access
+    struct gap_vector_sd
     {
 
     private:
         //!\privatesection
-        using aligned_sequence_t    = aligned_sequence_adaptor_constant_access;
+        using aligned_sequence_t    = gap_vector_sd;
         //using alphabet_t = typename ranges::v3::value_type_t<inner_type>::alphabet_type;
         //!\brief Type of the bit-vector.
         using bit_vector_t          = sdsl::sd_vector<>;
@@ -80,25 +80,25 @@ namespace seqan3 {
          * \{
          */
         // \brief Default constructor.
-        constexpr aligned_sequence_adaptor_constant_access()
+        constexpr gap_vector_sd()
         {
             data = std::shared_ptr<data_t>(new data_t{});
         };
 
         //!\brief Default copy constructor.
-        constexpr aligned_sequence_adaptor_constant_access(aligned_sequence_adaptor_constant_access const &) = default;
+        constexpr gap_vector_sd(gap_vector_sd const &) = default;
 
         //!\brief Default copy construction via assignment.
-        constexpr aligned_sequence_adaptor_constant_access & operator=(aligned_sequence_adaptor_constant_access const &) = default;
+        constexpr gap_vector_sd & operator=(gap_vector_sd const &) = default;
 
         //!\brief Move constructor.
-        constexpr aligned_sequence_adaptor_constant_access (aligned_sequence_adaptor_constant_access && rhs) = default;
+        constexpr gap_vector_sd (gap_vector_sd && rhs) = default;
 
         //!\brief Move assignment.
-        constexpr aligned_sequence_adaptor_constant_access & operator=(aligned_sequence_adaptor_constant_access && rhs) = default;
+        constexpr gap_vector_sd & operator=(gap_vector_sd && rhs) = default;
 
         //!\brief Use default deconstructor.
-        ~aligned_sequence_adaptor_constant_access() = default;
+        ~gap_vector_sd() = default;
         //!\}
 
         //!\brief
@@ -107,7 +107,7 @@ namespace seqan3 {
          */
         //!\brief Construct by single value repeated 'size' times
         //shared_ptr<data_t>
-        constexpr aligned_sequence_adaptor_constant_access(inner_type * sequence): data{new data_t{sequence}}
+        constexpr gap_vector_sd(inner_type * sequence): data{new data_t{sequence}}
         {
             sdsl::sd_vector_builder builder(sequence->size(), 0);
             data->gap_vector = bit_vector_t(builder);
@@ -585,7 +585,7 @@ namespace seqan3 {
 
     //!\brief Global swap function.
     template <typename inner_type, char gap_symbol = '_'>
-    void swap (aligned_sequence_adaptor_constant_access<inner_type> & lhs, aligned_sequence_adaptor_constant_access<inner_type> & rhs)
+    void swap (gap_vector_sd<inner_type> & lhs, gap_vector_sd<inner_type> & rhs)
     {
         lhs.swap(rhs);
     }
