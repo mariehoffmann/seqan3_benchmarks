@@ -140,7 +140,7 @@ def compile_parallel(compile_string_llist):
                 sys.exit(-1)
             binaries_i.append(search_obj.group(1))
         binaries.append(binaries_i)
-    num_cpus = multiprocessing.cpu_count() - 2
+    #num_cpus = mp.cpu_count() - 2
     return binaries
 
 # runtime and heap profiling input [binary_run, binaries_heap]
@@ -181,11 +181,9 @@ def run(binaries, id, return_dict):
             path_to_space_log = os.path.join(log_dir, binary + ".space.log")
             path_to_space_out = os.path.join(result_dir, binary + ".space.out")
             cmd = space_cmd.format(str(path_to_binary), str(path_to_space_log), str(path_to_space_out))
-            print(cmd)
             sum_max_rss = 0
             for i in range(runs):
                 code = os.system(cmd)
-                #print(code >> 8)
                 # extract 'maximum resident set size'
                 with open(path_to_space_out, 'r') as f:
                     line = f.readlines()[1]
@@ -194,15 +192,7 @@ def run(binaries, id, return_dict):
                         print("ERROR: Could not extract resident size from '" + str(path_to_time_out) + "'")
                         sys.exit(0)
                     sum_max_rss += int(mobj.group(1))
-                    #print("max set size: " + str(int(mobj.group(1))))
             rc[4].append(int(sum_max_rss/runs))
-            #print("max avg set size: " + str(rc[4][-1]))
-
-    #print(rc[0])
-    #print(rc[1])
-    #print(rc[2])
-    #print(rc[3])
-    #print(rc[4])
     print("DEBUG: add result_collector with id = " + str(id))
     return_dict[id] = rc
 
@@ -213,7 +203,6 @@ def run_parallel(binary_llist):
     manager = mp.Manager()
     return_dict = manager.dict()
 
-    #print(binary_llist)
     for i, binary_list in enumerate(binary_llist):
         print("STATUS: launch swap " + str(i))
         p = mp.Process(target=run, args=(binary_list, i, return_dict))
@@ -233,18 +222,13 @@ def generate_src_files(idx):
     random.seed(datetime.now())
     seed = random.random()
     compile_str_list = []
-    # benchmarks = [["benchmark" + str(i+1) + meth for meth in ["_GS", "_GVsd", "_GVbit", "_AL", "_AS"]] for i in range(3)]
     print(benchmarks[idx-1])
-    #sys.exit()
     for i, benchmark in enumerate(benchmarks[idx-1][:2]):
         for base_type in base_types:
             for GAP_FLAG in range(2):
                 benchmark_name_run = benchmark + "_".join(["", base_type, "GAPFLAG", str(GAP_FLAG), "RUN", "REPEAT", str(param.REPEAT), "POW1", str(param.POW1), "POW2", str(param.POW2)])
                 # one for each power of two with REPEAT=1
                 benchmark_names_heap = [benchmark + "_".join(["", base_type, "GAPFLAG", str(GAP_FLAG), "HEAP", "POW", str(pow)]) for pow in range(param.POW1, param.POW2+1)]
-                # TODO: use better run file for copying
-                print(benchmark_name_run)
-                print(benchmark_names_heap)
 
                 # cpp file names
                 cpp_file_run = benchmark_name_run + ".cpp"
@@ -261,15 +245,12 @@ def generate_src_files(idx):
                 compile_strs_heap = [compile_str_new.replace("<benchmark>", benchmark_name) for benchmark_name in benchmark_names_heap]
                 compile_strs_heap = [compile_str_heap.replace("<cpp_file>", cpp_file) for compile_str_heap, cpp_file in zip(compile_strs_heap, cpp_files_heap)]
 
-                #print(compile_str_run)
-                #for c in compile_strs_heap:
-                #    print(c)
                 compile_str_list.append([compile_str_run] + compile_strs_heap)
 
                 template_file = "benchmark{}.template.cpp".format(idx)
                 # substitute datatype in template cpp file
                 if (os.path.isfile(template_file) == False):
-                    print("Error: file '" + template_file + "' not in current directory.")
+                    print("ERROR: file '" + template_file + "' not in current directory.")
                     sys.exit(1)
 
                 # copy template
@@ -278,7 +259,6 @@ def generate_src_files(idx):
 
                 # print info string
                 sed_cmd = sed.format("info", "auto-generated benchmark", template_file_new)
-                #print(sed_cmd)
                 os.system(sed_cmd)
                 # set seed
                 sed_cmd = sed.format("seed", seed, template_file_new)
@@ -287,48 +267,42 @@ def generate_src_files(idx):
                 # substitute datatype in file
                 alphabet_type_rx = re.compile("(\w+\d+)_?.*?")
                 alphabet_type = alphabet_type_rx.search(base_type).group(1)
-                #print(alphabet_type)
                 letter_A = "alphabet_type::A"
                 if i is 0:  #  ="Gapped Sequence":
                     letter_A = "alphabet_type{{{}::A}}".format(alphabet_type)
                 sed_cmd = sed.format("letter_A", letter_A, template_file_new)
-                #print(sed_cmd)
                 os.system(sed_cmd)
                 # substitute underlying sequence data type
                 sed_cmd = sed.format("alphabet_type", alphabet_type, template_file_new)
                 if i is 0:  # = "Gapped Sequence"
                     sed_cmd = sed.format("alphabet_type", "gapped<{}>".format(alphabet_type), template_file_new)
-                #print(sed_cmd)
+                os.system(sed_cmd)
+                # substitute gapped alphabet type
+                sed_cmd = sed.format("gapped_alphabet_type", "union_composition<{}, gap>".format(alphabet_type), template_file_new)
                 os.system(sed_cmd)
                 # substitute value_type
                 #case gapped sequence: vector<alphabet_type>, else: vector<gapped<alphabet_type>>
                 value_type = alphabet_type
                 if i == 0:
                     value_type = "gapped<{}>".format(value_type)
-                #print("value_type = " + value_type)
                 sed_cmd = sed.format("value_type", value_type, template_file_new)
-                #print(sed_cmd)
                 os.system(sed_cmd)
 
                 # substitute container type of underlying sequence
                 container_type = "std::vector<{}>"
                 if base_type.endswith("_compressed") == True:
                     container_type = "seqan3::bitcompressed_vector<{}>"
-                #print("container_type = " + container_type.format(value_type))
                 sed_cmd = sed.format("container_type", container_type.format(value_type), template_file_new)
                 os.system(sed_cmd)
 
                 # substitute gap_decorator
                 gap_decorator = gap_decorators[i]
                 sed_cmd = sed.format("gap_decorator", gap_decorator, template_file_new)
-                print(sed_cmd)
-                #sys.exit()
                 os.system(sed_cmd)
 
                 # substitute LOG_LEVEL macro
                 sed_cmd = sed.format("LOG_LEVEL", abs(hash(benchmark_name_run)) % 10**8, template_file_new)
                 os.system(sed_cmd)
-                #print(sed_cmd)
 
                 # set GAP_FLAG
                 sed_cmd = sed.format("GAP_FLAG", GAP_FLAG, template_file_new)
@@ -337,23 +311,18 @@ def generate_src_files(idx):
                 # distribute current copy (note: cpp_file_run is identical with template_file_new up to here)
                 for cpp_file in cpp_files_heap:
                     copyfile(os.path.join(src_dir, template_file_new), os.path.join(src_dir, cpp_file))
-                #    print("copied " + str(cpp_file))
 
                 # substitute output filename
                 result_file_run = os.path.join(result_dir, benchmark_name_run + ".csv")
-                #print("result file name: " + result_file_run)
                 sed_cmd = sed.format("benchmark.csv", result_file_run, template_file_new)
                 os.system(sed_cmd)
-                #print(sed_cmd)
 
                 # substitute benchmark name
                 sed_cmd = sed.format("benchmark", benchmark_name_run, cpp_file_run)
                 os.system(sed_cmd)
-                #print(sed_cmd)
                 for cpp_file, benchmark_name in zip(cpp_files_heap, benchmark_names_heap):
                     sed_cmd = sed.format("benchmark", benchmark_name, cpp_file)
                     os.system(sed_cmd)
-                    #print(sed_cmd)
 
                 # substitute sequence length range as power of 2 and number of experiment repetitions
                 sed_cmd = sed.format("POW1", param.POW1, cpp_file_run)
@@ -374,13 +343,11 @@ def generate_src_files(idx):
                 sed_cmds = [sed.format("REPEAT", 1, cpp_file) for cpp_file in cpp_files_heap]
                 [os.system(sed_cmd) for sed_cmd in sed_cmds]
 
-
     os.system("rm ./src/*.bak")
     print("STATUS: binary list")
     for s in compile_str_list:
         for item in s:
             print(item.split(" ")[-1])
-    #sys.exit()
     return compile_str_list
 
 if __name__ == "__main__":
@@ -396,15 +363,9 @@ if __name__ == "__main__":
         param.POW2 = int(sys.argv[8])
         print("STATUS: Generate source files ...")
         compile_string_llist = generate_src_files(int(sys.argv[1]))
-        #for compile_string_list in compile_string_llist:
-        #    print(compile_string_list)
-        #    for f in compile_string_list:
-        #        print(f)
-        #    print("\n")
         print("STATUS: Source file generation done\nSTATUS: Compile source files ...")
         binaries = compile_parallel(compile_string_llist)
         print(binaries)
-        #sys.exit(0)
         print("STATUS: Source file compilation done\nSTATUS: Execute binaries in parallel ...")
         result_dict = run_parallel(binaries)
         print("STATUS: Binary execution done")

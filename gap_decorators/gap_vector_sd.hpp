@@ -176,17 +176,20 @@ namespace seqan3 {
         {
             // either keep it uptodate, also when resizing underlying sequence (del 0s!) or use rank
             // return data->gap_vector.size();
+//            std::cout << "SIZE: query dirty bit\n";
             if (data->dirty)
                 update_support_structures();
 
             if (LOG_LEVEL_GV)
             {
-                std::cout << "enter size ...\n";
-            std::cout << "is dirty = " << data->dirty << std::endl;
-            std::cout << "data->gap_vector.size() = " << data->gap_vector.size() << std::endl;
-            std::cout << "data->rank_1_support.rank(1) = " <<  data->rank_1_support.rank(0) << std::endl;
+                std::cout << "SIZE: enter size ...\n";
+            std::cout << "SIZE: is dirty = " << data->dirty << std::endl;
+            std::cout << "SIZE: data->gap_vector.size() = " << data->gap_vector.size() << std::endl;
+            std::cout << "SIZE: data->rank_1_support.rank(1) = " <<  data->rank_1_support.rank(0) << std::endl;
             }
-            return data->rank_1_support.rank(data->gap_vector.size()-1) + data->sequence->size();
+            return data->gap_vector.size();
+            // TODO: continue debugging of resize fct
+//            return data->rank_1_support.rank(data->gap_vector.size()-1) + data->sequence->size();
         }
 
         /*!\brief Return the maximal aligned sequence length.
@@ -240,14 +243,6 @@ namespace seqan3 {
                 return false;
             if (data->dirty)
                 update_support_structures();
-
-            // 00011111001111100000000000       after (11,4) before (13,1)
-            // 01234567890123456789012345
-
-            //enter insert_gap with pos = 13, and size = 1
-            //init builder with new amount of set bits: 11      correct
-            //iterate over suffix from i = 25 to 14
-
             // rank queries on empty sd_vector throws assertion
             size_type m = (!this->size()) ? size : data->rank_1_support.rank(this->size()) + size;
             if (LOG_LEVEL_GV) std::cout << "init builder with new amount of set bits: " << m << std::endl;
@@ -494,12 +489,12 @@ namespace seqan3 {
 
         bool resize(size_type new_size)
         {
-            if (LOG_LEVEL_GV) std::cout << "start resizing ... ";
+            if (LOG_LEVEL_GV) std::cout << "RESIZE: start resizing ... ";
             assert(new_size <= this->size());
             //assert(data->sequence->size() > 0);
             for (auto pos = this->size() - 1; pos >= new_size; --pos)
             {
-                if (LOG_LEVEL_GV) std::cout << "current pos = " << pos << ", gseq[pos] = " << (value_type)(*this)[pos] << std::endl;
+                if (LOG_LEVEL_GV) std::cout << "RESIZE: current pos = " << pos << ", gseq[pos] = " << (value_type)(*this)[pos] << std::endl;
                 if ((value_type)(*this)[pos] == gap::GAP)
                 {
                     erase_gap(pos);
@@ -517,7 +512,16 @@ namespace seqan3 {
                     update_support_structures();*/
                 }
             }
-            if (LOG_LEVEL_GV) std::cout << "... final size = " << this->size() << std::endl;
+            size_type m = data->rank_1_support(new_size);
+            std::cout << "RESIZE: rebuild bit_vector, new_size = " << new_size << std::endl;
+            std::cout << "RESIZE: rank1(new_size) = " << data->rank_1_support(new_size) << std::endl;
+            sdsl::sd_vector_builder builder(new_size, data->rank_1_support(new_size));
+            for (size_type i = 1; i <= m; ++i)
+                builder.set(data->select_1_support.select(i));
+            data->gap_vector = bit_vector_t(builder);
+
+            update_support_structures();
+            if (LOG_LEVEL_GV) std::cout << "RESIZE: final size = " << this->size() << std::endl;
             return true;
         }
 

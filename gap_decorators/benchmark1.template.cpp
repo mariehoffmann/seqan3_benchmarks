@@ -125,7 +125,7 @@ void benchmark1(int csv_flag)  //std::string const & binary_name)
             std::chrono::high_resolution_clock::time_point t1, t2;
 
             // case gapped sequence: vector<alphabet_type>, else: vector<gapped<alphabet_type>>
-            std::vector<<[alphabet_type]>> aux(10);
+            std::vector<<[gapped_alphabet_type]>> aux(10);
             for (auto j = 0; j < REPEAT; ++j) // for benchmark 2 and 3 reduce REPEAT
             {
                 // sample read position
