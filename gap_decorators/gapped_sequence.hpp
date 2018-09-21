@@ -46,6 +46,13 @@ struct gapped_sequence
         return true;
     }
 
+    bool erase_gap(size_type const pos1, size_type const pos2)
+    {
+        assert(pos1 < pos2 && pos2 <= this->size());
+        _data.erase(_data.begin() + pos1, _data.begin() + pos2);
+        return true;
+    }
+
     size_type size()
     {
         return _data.size();

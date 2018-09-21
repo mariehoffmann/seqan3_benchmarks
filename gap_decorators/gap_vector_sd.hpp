@@ -503,18 +503,11 @@ namespace seqan3 {
                 else
                 {
                     data->sequence->resize(data->sequence->size() - 1);
-                    /*
-                    sdsl::sd_vector_builder builder(this->size()-1, m);
-                    for (size_type i = 1; i <= m; ++i)
-                        builder.set(data->select_1_support.select(i));
-                    data->gap_vector = bit_vector_t(builder);
-
-                    update_support_structures();*/
                 }
             }
             size_type m = data->rank_1_support(new_size);
-            std::cout << "RESIZE: rebuild bit_vector, new_size = " << new_size << std::endl;
-            std::cout << "RESIZE: rank1(new_size) = " << data->rank_1_support(new_size) << std::endl;
+            //std::cout << "RESIZE: rebuild bit_vector, new_size = " << new_size << std::endl;
+            //std::cout << "RESIZE: rank1(new_size) = " << data->rank_1_support(new_size) << std::endl;
             sdsl::sd_vector_builder builder(new_size, data->rank_1_support(new_size));
             for (size_type i = 1; i <= m; ++i)
                 builder.set(data->select_1_support.select(i));

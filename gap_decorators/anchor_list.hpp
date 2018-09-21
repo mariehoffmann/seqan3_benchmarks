@@ -119,53 +119,59 @@ namespace seqan3 {
             return ((!data->sequence) ? true : data->sequence->empty()) && data->gap_list.size() == 0;
         }
 
-
-        // TODO: either store virtual postions, then update succeeding gaps or debug []-operator
-        bool insert_gap(size_type const pos, size_type const size=1) // TO TEST
+        // TODO: segfault
+        // position is virtual, gaps not accumulated
+        bool insert_gap(size_type const pos, size_type const size=1)
         {
-            if (pos > this->size()){
-                //std::cout << "this size = " << this->size() << std::endl;
-                //std::cout << "return false\n";
-                return false;
+            assert(pos <= this->size());
+            if (LOG_LEVEL_AL) std::cout << "Enter insert_gap\n";
+            auto it = std::lower_bound(data->gap_list.begin(), data->gap_list.end(), gap_t{pos, 0}, [](gap_t lhs, gap_t rhs) -> bool { return lhs.first < rhs.first;});
+            if (LOG_LEVEL_AL) std::cout << "lower_bound is end(): " << (it == data->gap_list.end()) << std::endl;
+            auto it_succ = it;
+            // case: extend gap head
+            if (it != data->gap_list.end() && (*it).first == pos)
+            {
+                if (LOG_LEVEL_AL) std::cout << "case 1: gap head extension\n";
+                (*it).second += size;
+                ++it_succ;
             }
-            // just push_back or search true position or expand existing one
+            // case: merge with preceeding gap
+            else if (it != data->gap_list.begin() && ((*(it-1)).first + (*(it-1)).second) >= pos)
+            {
+                if (LOG_LEVEL_AL) std::cout << "case 2: gap merge\n";
+                (*(it-1)).second += size;
+            }
 
-            size_type y, x = 0; // current gap range [x .. y[
-            bool search_flag = true;
-            size_type i = 0;
-            for (; search_flag && i < data->gap_list.size(); ++i)
-            {
-                auto elem = data->gap_list[i];
-                x += elem.first;
-                y = x + elem.second;
-                // case 2a: insert before to current gap
-                if (pos < x)
-                {
-                    data->gap_list.insert(data->gap_list.begin()+i, gap_t(pos, size));
-                    search_flag = false;
-                }
-                // case 2b: pos is gap position or follows directly => expand current gap
-                if ((pos >= x) & (pos <= y))
-                {
-                    elem = gap_t(elem.first, elem.second + size);
-                    search_flag = false;
-                }
-            }
-            // case 2c: new gap starting position is beyond all gaps
-            if (search_flag)
-            {
-                if (LOG_LEVEL_AL) std::cout << "case push_back\n";
-                data->gap_list.push_back(gap_t(pos, size));
-            }
-            // case 2a+b: update successors, i.e. shift start pos by size
+            // insert new gap
             else
             {
-                if (LOG_LEVEL_AL) std::cout << "case update successors\n";
-                for (++i; i < data->gap_list.size(); ++i)
+                if (LOG_LEVEL_AL) std::cout << "case 3: insert new gap\n";
+                if (it == data->gap_list.end())
                 {
-                    data->gap_list[i].first += size;
+                    if (LOG_LEVEL_AL) std::cout << "\tsubcase: push_back\n";
+                    if (LOG_LEVEL_AL) std::cout << "gap_list.size: " << data->gap_list.size() << std::endl;
+                    data->gap_list.push_back(gap_t{pos, size});
+                    if (LOG_LEVEL_AL) std::cout << "\tpush_back done\n";
+                    // updating iterator to successor
+                    it_succ = data->gap_list.end();
                 }
-                if (LOG_LEVEL_AL) std::cout << "update done\n";
+                else
+                {
+                    if (LOG_LEVEL_AL) std::cout << "\tsubcase: insert at it-1\n";
+                    if (it == data->gap_list.begin())
+                    {
+                        data->gap_list.insert(it, gap_t{pos, size});
+                        it_succ = data->gap_list.begin() + 1;
+                    }
+                    else
+                        data->gap_list.insert(it-1, gap_t{pos, size});
+                }
+            }
+            // update tailing gaps
+            for (; it_succ < data->gap_list.end(); ++it_succ)
+            {
+                if (LOG_LEVEL_AL) std::cout << "update tail" << std::endl;
+                (*it_succ).first += size;
             }
             return true;
         }
@@ -177,59 +183,38 @@ namespace seqan3 {
             return erase_gap(pos, pos+1);
         }
 
-        // TODO: make search binary, since gap positions are virtual
-        bool erase_gap2(size_type const pos1, size_type const pos2)      // UNTESTED
+        // precondition: as[pos1:pos2-1] == gap_{pos2-pos1}
+        bool erase_gap(size_type const pos1, size_type const pos2)
         {
-            std::cout << "total aseq size = " << this->size() << std::endl;
-            assert(pos1 <= pos2);
-            if (LOG_LEVEL_AL) std::cout << "enter erase_gap with pos1 = " << pos1 << ", pos2 = " << pos2 << std::endl;
-            if (pos1 >= size() || pos2 > size() || !data->gap_list.size() || pos2 < data->gap_list[0].first)
-                return false;
-            size_type x = 0, y; // current gap range [x; y[
-            int i = 0;
-            for (auto it = data->gap_list.begin(); it < data->gap_list.end();)
-            {
-                if (i++ > 20) exit(-1);
-                if (LOG_LEVEL_AL) std::cout << "current gap = (" << (*it).first << ", " << (*it).second << ")\n";
-                x += (*it).first;
-                y = x + (*it).second;
-                if (pos1 >= x && pos2 <= y)
-                {
-                    if (pos1 > x) // shorten gap
-                        *(it++) = gap_t((*it).first, (*it).second - pos2 + pos1);
-                    else if (pos1 == x && pos2 == y) // delete gap completely
-                        data->gap_list.erase(it++);
-                    else   // remove head of gap
-                        *(it++) = gap_t(pos1, (*it).second - pos1 + pos2);
-                    return true;
-                }
-                else
-                    ++it;
-            }
-            return false;
-        }
-
-        // TODO: behaviour when no gap in this range, or less than pos2-pos1?
-        bool erase_gap(size_type const pos1, size_type const pos2)      // UNTESTED
-        {
-            for (size_type pos = pos1; pos < pos2; ++pos)
-                if ((value_type)(*this)[pos] != gap::GAP)
-                    return false;
+            assert(pos1 < pos2);
             auto it = std::lower_bound(data->gap_list.begin(), data->gap_list.end(), gap_t{pos1, 0},
                                        [](gap_t gap1, gap_t gap2){return gap1.first < gap2.first;});
+            auto it_succ = it;
             // case 1: pos1 is not start of gap, i.e. correct iterator position and shorten existing gap
-            if (it > data->gap_list.begin() && (((*(it-1)).first + (*(it-1)).second) >= pos2))
+            if ((*it).first != pos1 && it > data->gap_list.begin() && (((*(it-1)).first + (*(it-1)).second) >= pos2))
                (*--it).second -= pos2 - pos1;
-
-            assert(it != data->gap_list.end());
-            // case 2: erase complete gap
-            if ((*it).first == pos1 && (*it).first + (*it).second == pos2)
-                data->gap_list.erase(it);
-            // case 3: erase head
-            else if ((*it).first == pos1)
+            else
             {
-                (*it).first += pos2 - pos1;
-                (*it).second -= pos2 - pos1;
+                if (LOG_LEVEL_AL) std::cout << "case: head or complete gap erasure\n";
+                // case 2: erase complete gap
+                if ((*it).first == pos1 && (*it).first + (*it).second == pos2)
+                    data->gap_list.erase(it);
+                // case 3: erase head, i.e. left shift gaps (anchor position remains, length shortened)
+                else // ((*it).first == pos1)
+                    (*it).second -= pos2 - pos1;
+                ++it_succ;
+            }
+            // update tailing gap positions
+            for (; it_succ < data->gap_list.end(); ++it_succ)
+            {
+                (*it_succ).first -= pos2-pos1;
+            }
+            if (LOG_LEVEL_AL)
+            {
+                std::cout << "updated gap_list is: ";
+                for (auto gap : data->gap_list)
+                    std::cout << "(" << gap.first << ", " << gap.second << "), ";
+                std::cout << std::endl;
             }
             return true;
         }

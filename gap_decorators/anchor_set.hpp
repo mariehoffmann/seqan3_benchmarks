@@ -1,6 +1,6 @@
 /*
     Uses an unordered set for the virtual gap positions to retrieve log (k) lookup time.
-    Drawback: since the virtual gap positions correspond to the accumulative sum of gap lengths, on update or deletion, the 
+    Drawback: since the virtual gap positions correspond to the accumulative sum of gap lengths, on update or deletion, the
     worst-case runtime is O(k) for updating subsequent gap positions.
     lower_bound probably does not take advantage of ordering when inserting tuple/pair, because order criterion not obvious.
  */
@@ -30,38 +30,38 @@ struct anchor_set
 {
 
 public:
-    
+
     using alphabet_type = typename ranges::v3::value_type_t<inner_type>;
     using value_type = gapped<alphabet_type>;
     using reference = value_type;
     using size_type = typename ranges::v3::size_type_t<inner_type>;
-    
+
     constexpr anchor_set()
     {
         data = std::shared_ptr<data_t>(new data_t{});
     };
-    
+
     constexpr anchor_set(anchor_set const &) = default;
-    
+
     constexpr anchor_set & operator=(anchor_set const &) = default;
-    
+
     constexpr anchor_set (anchor_set && rhs) = default;
-    
+
     constexpr anchor_set & operator=(anchor_set && rhs) = default;
-    
+
     ~anchor_set() = default;
-    
+
     constexpr anchor_set(inner_type * sequence): data{new data_t{sequence}} {};
-    
-    
+
+
     size_type size() const noexcept
     {
-        
+
         if (data->anchor_idcs.size())
             return data->idx2len[*(data->anchor_idcs.rbegin())] + data->sequence->size();
         return data->sequence->size();
     }
-    
+
     // for benchmark only
     bool resize(size_type new_size)
     {
@@ -85,7 +85,7 @@ public:
         if (LOG_LEVEL_AS) std::cout << "... final size = " << this->size() << std::endl;
         return true;
     }
-    
+
     bool insert_gap(size_type const pos, size_type const size=1)
     {
         if (LOG_LEVEL_AS) std::cout << "called insert with pos = " << pos << ", size = " << size << std::endl;
@@ -106,7 +106,7 @@ public:
             // merge with successor
             typename std::set<size_type>::iterator it_next = it;
             ++it_next;
-            
+
             if (*it < *std::prev(data->anchor_idcs.end()) && (*it_next) <= (*it) + size - 1)
             {
                 if (LOG_LEVEL_AS) std::cout << "case: merge also with successor (" << *(it_next) << ", " << data->idx2len[*(it_next)] << ") ... \n";
@@ -114,9 +114,9 @@ public:
                 data->idx2len[*it] += data->idx2len[*(it_next)];
                 data->anchor_idcs.erase(*(it_next));
                 data->idx2len.erase(*(it_next));
-                
+
             }
-            
+
         }
         // case 2: new anchor gap
         else
@@ -127,7 +127,7 @@ public:
             if (LOG_LEVEL_AS) std::cout << "anchor_idx = " << pos << ", len = " << data->idx2len[pos] << std::endl;
             // pre: pos not in anchor set, what's the next lower index?
             it = data->anchor_idcs.find(pos); // return value in case of no lower elem?
-            
+
             if (LOG_LEVEL_AS)
             {
                 for (auto it2 = data->anchor_idcs.begin(); it2 != data->anchor_idcs.end(); ++it2)
@@ -148,24 +148,24 @@ public:
         return true;
     }
 
-    
+
     bool erase_gap(size_type const pos)
     {
         return erase_gap(pos, pos+1);
     }
-    
+
     bool erase_gap(size_type const pos1, size_type const pos2)
     {
-        
+
         if (LOG_LEVEL_AS) std::cout << "call erase_gap at pos1 = " << pos1 << ", pos2 = " << pos2 << std::endl;
-        if ((value_type)(*this)[pos1] != gap::GAP || pos1 >= pos2){
+        /*if ((value_type)(*this)[pos1] != gap::GAP || pos1 >= pos2){
             std::cout << "error no gap at this pos\n";
             std::exit(-1);
             return false;
-        }
+        }*/
         typename std::set<size_type>::iterator it = data->anchor_idcs.lower_bound(pos1);
         size_type gap_len = get_gap_length(it);
-        
+
         if (it == data->anchor_idcs.end() || (*it) > pos1) it = std::prev(it);
         if (LOG_LEVEL_AS) std::cout << "lower_bound is: " << *it << std::endl;
         // case 1: complete gap is deleted
@@ -190,12 +190,12 @@ public:
         if (LOG_LEVEL_AS) std::cout << "... update done\n";
         return true;
     }
-    
+
     void set_underlying_sequence(inner_type * sequence) const
     {
         data->sequence = sequence;
     }
-    
+
     constexpr reference operator[](size_type const idx) const
     {
         assert(idx < size());
@@ -204,7 +204,7 @@ public:
         // case 2: gaps
         typename std::set<size_type>::iterator it = data->anchor_idcs.lower_bound(idx);
         if (data->anchor_idcs.size() && it == data->anchor_idcs.end())  it = std::prev(it);
-        
+
         size_type acc = 0, gap_len = 0;
         if ((*it) <= idx || (it != data->anchor_idcs.begin() && *(std::prev(it)) <= idx))
         {
@@ -218,15 +218,15 @@ public:
         }
         return value_type((*data->sequence)[idx - acc]);
     }
-    
+
 private:
-    
+
     constexpr size_type get_gap_length(typename std::set<size_type>::iterator it) const noexcept
     {
         if (it == data->anchor_idcs.begin()) return data->idx2len[*it];
         return data->idx2len[*it] - data->idx2len[*std::prev(it)];
     }
-    
+
     // reverse update: increase all anchor gaps AFTER position pos by size, i.e. start position AND size
     void rupdate(size_type const pos, size_type const size)
     {
@@ -242,27 +242,27 @@ private:
             new_val = data->idx2len[*it] + size;
             if (LOG_LEVEL_AS) std::cout << "reverse update with *it = " << (*it) << std::endl;
             auto nodeHandler = data->idx2len.extract(*it);
-            
+
             nodeHandler.key() = new_key;
             if (LOG_LEVEL_AS) {
                 std::cout << "\tnew key for anchor " << (*it) << " -> " << nodeHandler.key() << std::endl;
                 std::cout << "\tnew val for anchor " << (*it) << " -> " << new_val << std::endl;
             }
             data->idx2len.insert(std::move(nodeHandler));
-            
-            // update value as well
+            data->idx2len[new_key] = new_val;
+
+
             if (LOG_LEVEL_AS) std::cout << "\tnew value for anchor " << new_key << ": " << data->idx2len[new_key] + size << " (old key = " << data->idx2len[new_key] << ")" << std::endl;
-            
-            assert(data->idx2len.end() != data->idx2len.find(*it));
-            
-            data->idx2len[new_key] = new_val; //data->idx2len[new_key] + size;
+
+            //assert(data->idx2len.end() != data->idx2len.find(*it));
+
             //std::cout << "updated key to accum gap size resolution\n";
             // // todo: best would be a guaranteed in place update, since keys are monotonously increased, no balancing needed
             data->anchor_idcs.insert(new_key);
             data->anchor_idcs.erase(*it--);
             //std::cout << "erased old value, it points to " << (*it) << std::endl;
         }
-        
+
         if (LOG_LEVEL_AS)
         {
             std::cout << "\tupdated anchors: ";
@@ -271,7 +271,7 @@ private:
             std::cout << "total as size : " << this->size() << std::endl;
         }
     }
-    
+
     // forward update: decrease all anchor gaps after position pos by size
     void update(size_type const pos, size_type const size)
     {
@@ -284,9 +284,9 @@ private:
             std::cout << (it == data->anchor_idcs.end()) << std::endl;
             std::cout << (it != data->anchor_idcs.end()) << std::endl;
         }
-        
+
         if (LOG_LEVEL_AS) {std::cout << "anchors: "; for (auto a : data->anchor_idcs) std::cout << a << ", ";}
-        
+
         while (it != data->anchor_idcs.end()) //for (int i = 0; it != data->anchor_idcs.end(), i < 5; ++i)
         {
             if (LOG_LEVEL_AS) {
@@ -295,7 +295,7 @@ private:
             }
             auto nodeHandler = data->idx2len.extract(*it);
             nodeHandler.key() = (*it) - size;
-            
+
             if (LOG_LEVEL_AS) std::cout << "new hdlr key = " << (*it) - size << std::endl;
             data->idx2len.insert(std::move(nodeHandler));
             data->idx2len[(*it) - size] -= size;
@@ -303,12 +303,12 @@ private:
             if (LOG_LEVEL_AS) std::cout << "insert into anchors: " << (*it) - size << std::endl;
             data->anchor_idcs.insert((*it) - size);
             if (LOG_LEVEL_AS) std::cout << "erase from anchors: " << (*it) << std::endl;
-            
+
             typename std::set<size_type>::iterator it_next = std::next(it);
             data->anchor_idcs.erase(*it);
             it = it_next;
             if (it_next == data->anchor_idcs.end()) break;
-            
+
         }
         if (LOG_LEVEL_AS)
         {
@@ -317,8 +317,8 @@ private:
             std::cout << std::endl;
         }
     }
-    
-    
+
+
     struct data_t
     {
         // pointer to ungapped, underlying sequence
@@ -327,7 +327,7 @@ private:
         std::set<size_type> anchor_idcs{};
         // store accumulated gap lengths corresponding to virtual gap positions
         std::unordered_map<size_type, size_type> idx2len{};
-        
+
     };
     std::shared_ptr<data_t> data;
 };
