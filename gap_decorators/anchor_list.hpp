@@ -62,7 +62,7 @@ namespace seqan3 {
 
         constexpr anchor_list & operator=(anchor_list && rhs) = default;
 
-        ~anchor_list() = default;
+        ~anchor_list() = default; //{data->gap_list.clear();};
 
         constexpr anchor_list(inner_type * sequence): data{new data_t{sequence}} {};
 
@@ -187,22 +187,53 @@ namespace seqan3 {
         bool erase_gap(size_type const pos1, size_type const pos2)
         {
             assert(pos1 < pos2);
+            // Returns an iterator pointing to the first element in the range [first, last)
+            // that is not less than (i.e. greater or equal to) value, or last (i.e. end()!)
+            // if no such element is found.
+            //std::cout << "pos1 = " << pos1 << ", pos2 = " << pos2 << std::endl;
             auto it = std::lower_bound(data->gap_list.begin(), data->gap_list.end(), gap_t{pos1, 0},
                                        [](gap_t gap1, gap_t gap2){return gap1.first < gap2.first;});
             auto it_succ = it;
-            // case 1: pos1 is not start of gap, i.e. correct iterator position and shorten existing gap
-            if ((*it).first != pos1 && it > data->gap_list.begin() && (((*(it-1)).first + (*(it-1)).second) >= pos2))
+            /*std::cout << "gap_list: ";
+            for (gap_t gap : data->gap_list) std::cout << "(" << gap.first << ", " << gap.second << ") ";
+            std::cout << std::endl;
+            std::cout << "lower bound points to (" << (*it).first << ", " << (*it).second << ")\n";
+            std::cout << "(*it).first < pos1 ? " << ((*it).first < pos1) << std::endl;
+            std::cout << "((*it).first + (*it).second) >= pos2 ? " << (((*it).first + (*it).second) >= pos2) << std::endl;
+*/
+            // case: beyond last element, which starts before pos1
+            if (it == data->gap_list.end())
+            {
+                --it;
+                (*it).second -= pos2 - pos1;
+                return true;
+            }
+
+            // case: it points to succeeding gap pos, check predecessor
+            if ((*it).first > pos1 && it > data->gap_list.begin() && (((*(it-1)).first + (*(it-1)).second) >= pos2))
+            {
+                //std::cout << "case1b: gap inner or tail erasure\n";
                (*--it).second -= pos2 - pos1;
+            }
             else
             {
-                if (LOG_LEVEL_AL) std::cout << "case: head or complete gap erasure\n";
+                //std::cout << "case2: head or complete gap erasure\n";
                 // case 2: erase complete gap
                 if ((*it).first == pos1 && (*it).first + (*it).second == pos2)
+                {
+                    ++it_succ;
+                    //std::cout << "\tsubcase a: erase complete gap\n";
                     data->gap_list.erase(it);
+                }
                 // case 3: erase head, i.e. left shift gaps (anchor position remains, length shortened)
                 else // ((*it).first == pos1)
+                {
+                    //std::cout << "\tsubcase b: shorten gap (" << (*it).first << ", " << (*it).second << " to (";
                     (*it).second -= pos2 - pos1;
-                ++it_succ;
+                    //std::cout << (*it).first << ", " << (*it).second << "\n";
+                    ++it_succ;
+                }
+
             }
             // update tailing gap positions
             for (; it_succ < data->gap_list.end(); ++it_succ)
@@ -234,7 +265,7 @@ namespace seqan3 {
 
         constexpr reference operator[](size_type const idx) // const noexcept(noexcept((*host)[pos+n]))
         {
-            assert(idx < size());
+            assert(idx < this->size());
 
             if (!data->gap_list.size()) return value_type((*data->sequence)[idx]);
             if (LOG_LEVEL_AL)
@@ -284,10 +315,13 @@ namespace seqan3 {
             assert(new_size <= this->size());
             for (auto pos = this->size() - 1; pos >= new_size; --pos)
             {
-                if ((value_type)(*this)[pos] == gap::GAP)
+                if ((value_type)(*this)[pos] == gap::GAP){
                     erase_gap(pos);
+                }
                 else
+                {
                     data->sequence->resize(data->sequence->size() - 1);
+                }
             }
             if (LOG_LEVEL_AL) std::cout << "... final size = " << this->size() << std::endl;
             return true;
