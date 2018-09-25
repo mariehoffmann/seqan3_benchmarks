@@ -12,7 +12,7 @@ RTavg = 5   # position of average runtime
 RTstddev = 6    # position of runtime deviation
 HS = 7  # position of heap size
 
-result_files = ['../results/benchmark_1_1_2_4.csv']
+result_files = ['../results/benchmark_1_1_2_3.csv']
 
 def plot(benchmark_idx):
     R = []  # Result matrix
@@ -35,10 +35,11 @@ def plot(benchmark_idx):
     # sequence lengths
     seq_lens = sorted(list(set([row[SL] for row in R])))
 
-    for alphabet_type in alphabet_types[:1]:
+    for alphabet_type in alphabet_types:
         plot_idx = 1
         for gap_flag in gap_flags:
             # row1: gap_flag=0, row2: gap_flag=1, col1: runtimes, col2: heap size
+            line_hdlrs = []
             for data_structure in data_structures:
                 print("alphabet_type = {}, gap_flag = {}, data_structure = {}".format(alphabet_type, gap_flag, data_structure))
                 R_sub =  [row for row in R if row[GF] == gap_flag and row[AL] == alphabet_type and row[DS] == data_structure]
@@ -49,21 +50,33 @@ def plot(benchmark_idx):
                     format(alphabet_type, gap_flag, data_structure))
                     sys.exit(-1)
 
-                plt.subplot(len(gap_flags), 2, plot_idx)
+                ax = plt.subplot(len(gap_flags), 2, plot_idx)
                 print(seq_lens)
                 print([t[1] for t in data])
-                plt.plot(seq_lens, [t[1] for t in data])
-                plt.title('Runtimes for ALPHABET = {}, GAP_FLAG = {}'.format(alphabet_type, gap_flag))
-                plt.xlabel('sequence lengths')
-                plt.ylabel('Runtimes in nanoseconds')
+                line_hdlr, = ax.plot(seq_lens, [t[1] for t in data], label=data_structure)
+                line_hdlrs.append(line_hdlr)
 
-                plt.subplot(len(gap_flags), 2, plot_idx+1)
-                plt.plot(seq_lens, [t[2] for t in data])
-                plt.title('Resident set size for ALPHABET = {}, GAP_FLAG = {}'.format(alphabet_type, gap_flag))
+                plt.title('Runtimes for {}, gapped = {}'.format(alphabet_type, gap_flag))
                 plt.xlabel('sequence lengths')
-                plt.ylabel('Maximum Resident Set Sizes')
+                plt.ylabel('Runtimes [nanosec]')
+                #plt.figlegend( (line1, line2, line3), ('label1', 'label2', 'label3'), 'upper right' )
+                #sys.exit()
+                ax2 = plt.subplot(len(gap_flags), 2, plot_idx+1)
+                ax2.plot(seq_lens, [float(t[2]/(10**6)) for t in data], label=data_structure)
+                #line_hdlrs.append(line_hdlr)
 
+                plt.title('Resident set sizes for {}, gapped = {}'.format(alphabet_type, gap_flag))
+                plt.xlabel('sequence lengths')
+                plt.ylabel('Maximum Resident Set Sizes [MB]')
+
+                plt.subplots_adjust(hspace=0.4)
+            # Place a legend to the right of this smaller subplot.
+            if gap_flag == 0:
+                plt.legend(bbox_to_anchor=(1.05, 1), loc=2, borderaxespad=0.)
+            #plt.legend(handles=line_hdlrs)
             plot_idx += 2
+        plt.show()
+        #sys.exit()
 
 if __name__ == "__main__":
     if len(sys.argv) == 1:

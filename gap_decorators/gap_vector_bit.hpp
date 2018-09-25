@@ -40,7 +40,6 @@ namespace seqan3 {
         //!\brief Type of the 1 select support data structure.
         // space .2*n, access O(1), alternative: select_support_scan space 64 bits, access O(n)
         using select_1_support_t      = sdsl::select_support_mcl<1>;  //bit_vector_t::select_0_type;
-        // TODO: adjust builder function
 
     public:
         //!\publicsection
@@ -340,8 +339,6 @@ namespace seqan3 {
         //
         // Worst-case runtime O(r+s+m), r, s rank and select support initialization,
         // m number of 1 bits.
-        // TODO: behaviour - pop last gap or (wherever it occurs) or only query
-        // last position and remove if gap?
         bool pop_back()
         {
             assert(this->size() > 0);

@@ -250,17 +250,8 @@ private:
             }
             data->idx2len.insert(std::move(nodeHandler));
             data->idx2len[new_key] = new_val;
-
-
-            if (LOG_LEVEL_AS) std::cout << "\tnew value for anchor " << new_key << ": " << data->idx2len[new_key] + size << " (old key = " << data->idx2len[new_key] << ")" << std::endl;
-
-            //assert(data->idx2len.end() != data->idx2len.find(*it));
-
-            //std::cout << "updated key to accum gap size resolution\n";
-            // // todo: best would be a guaranteed in place update, since keys are monotonously increased, no balancing needed
             data->anchor_idcs.insert(new_key);
             data->anchor_idcs.erase(*it--);
-            //std::cout << "erased old value, it points to " << (*it) << std::endl;
         }
 
         if (LOG_LEVEL_AS)
@@ -299,7 +290,6 @@ private:
             if (LOG_LEVEL_AS) std::cout << "new hdlr key = " << (*it) - size << std::endl;
             data->idx2len.insert(std::move(nodeHandler));
             data->idx2len[(*it) - size] -= size;
-            // // todo: best would be a guaranteed in place update, since keys are monotonously increased, no balancing needed
             if (LOG_LEVEL_AS) std::cout << "insert into anchors: " << (*it) - size << std::endl;
             data->anchor_idcs.insert((*it) - size);
             if (LOG_LEVEL_AS) std::cout << "erase from anchors: " << (*it) << std::endl;

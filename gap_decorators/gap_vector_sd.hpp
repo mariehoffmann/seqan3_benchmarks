@@ -174,9 +174,6 @@ namespace seqan3 {
         //!\brief Return gapped sequence length.
         size_type size() noexcept
         {
-            // either keep it uptodate, also when resizing underlying sequence (del 0s!) or use rank
-            // return data->gap_vector.size();
-//            std::cout << "SIZE: query dirty bit\n";
             if (data->dirty)
                 update_support_structures();
 
@@ -188,8 +185,6 @@ namespace seqan3 {
             std::cout << "SIZE: data->rank_1_support.rank(1) = " <<  data->rank_1_support.rank(0) << std::endl;
             }
             return data->gap_vector.size();
-            // TODO: continue debugging of resize fct
-//            return data->rank_1_support.rank(data->gap_vector.size()-1) + data->sequence->size();
         }
 
         /*!\brief Return the maximal aligned sequence length.

@@ -16,6 +16,7 @@
 from collections import namedtuple
 import copy
 from datetime import datetime
+import math
 import multiprocessing as mp
 import os
 import random
@@ -87,6 +88,9 @@ def print_results(result_dict):
         f.write(",".join(["benchmark_id", "gap_decorator", "alphabet_type", "GAPFLAG", "seq_len", "runtime avg [ns]", "runtime stddev [ns]", "maximum_resident_set_size"]) + "\n")
         for id, item in d.items():
             print("RESULT: " + item[0][0])
+            max_rows = max([len(item[i]) for i in range(1,5)])
+            if max_rows != min ([len(item[i]) for i in range(1,5)]):
+                print("WARNING: Results are missing ")
             header = "\t".join(["seq_len", "runtime avg [ns]", "runtime stddev [ns]", "maximum_resident_set_size"])
             print(header + "\n" + "-"*len(header))
             mobj = benchmark_rx.match(item[0][0])
@@ -94,7 +98,12 @@ def print_results(result_dict):
             gap_decorator = mobj.group(2)
             alphabet_type = mobj.group(3)
             GAPFLAG = mobj.group(4)
-            for seq_len, runtime_avg, runtime_stddev, max_resident_set_size in zip(item[1], item[2], item[3], item[4]):
+
+            for seq_len, runtime_avg, runtime_stddev, max_resident_set_size in \
+            zip(item[1] + [-1 for _ in range(max_rows-len(item[1]))], \
+            item[2] + [-1 for _ in range(max_rows-len(item[2]))], \
+            item[3] + [-1 for _ in range(max_rows-len(item[3]))], \
+            item[4] + [-1 for _ in range(max_rows-len(item[4]))]):
                 print("\t\t".join([str(seq_len), str(runtime_avg), str(runtime_stddev), str(max_resident_set_size)]))
                 f.write(",".join([benchmark_id, gap_decorator, alphabet_type, GAPFLAG, str(seq_len), str(runtime_avg), str(runtime_stddev), str(max_resident_set_size)]) + "\n")
             print("")
@@ -119,28 +128,49 @@ def compile(cmd):
 def compile_parallel(compile_string_llist):
     #print("compile_strings = " + str(compile_string_llist))
     binaries = []
-    procs = []
+    num_workers = mp.cpu_count() - 2
+
+    for llist in compile_string_llist:
+        for l in llist:
+            print(l[-50:])
+        print("---------------------------")
     for i, compile_strings in enumerate(compile_string_llist):
         compile_strings = [compile_strings[0]] + compile_strings[1:]
-        procs_i = []
-        for cmd in compile_strings:
-            #print(cmd)
-            p = mp.Process(target=compile, args=(str(cmd),))
-            p.start()
-            procs_i.append(p)
-        procs.append(procs_i)
+        for cs in compile_strings:
+            print(cs)
+        procs_i = set()
+        # launch warp-wise, otherwise OSError in popen_fork.py: Too many open files
+        k = 0
         binaries_i = []
-        for id, p in enumerate(procs_i):
-            p.join()
-            # extract binary name from compilation command
-            binary_rx = re.compile("-o {}/(.+)$".format(src_dir))
-            search_obj = binary_rx.search(compile_string_llist[i][id])
-            if search_obj is None:
-                print("STATUS: Error - could not extract binary name")
-                sys.exit(-1)
-            binaries_i.append(search_obj.group(1))
+        for j in range(max(1, math.ceil(len(compile_strings)/num_workers))):
+            for cmd in compile_strings[j*num_workers : (j+1)*num_workers]:
+                print("DEBUG: launch cmd = " + cmd[-50:])
+                p = mp.Process(target=compile, args=(str(cmd),))
+                p.start()
+                procs_i.add(p)
+                k += 1
+            for id, p in enumerate(procs_i):
+                p.join()
+                # extract binary name from compilation command
+                binary_rx = re.compile("-o {}/(.+)$".format(src_dir))
+                search_obj = binary_rx.search(compile_string_llist[i][j*num_workers + id])
+                if search_obj is None:
+                    print("STATUS: Error - could not extract binary name")
+                    sys.exit(-1)
+                print("DEBUG: append new binary to sublist: {}".format(search_obj.group(1)))
+                binaries_i.append(search_obj.group(1))
+            procs_i.clear()
+        print("DEBUG: compiled " + str(k) + " binaries")
+        print("DEBUG: binaries returned after compilation: ")
         binaries.append(binaries_i)
-    #num_cpus = mp.cpu_count() - 2
+        for b in binaries_i:
+            print(b)
+        #sys.exit()
+        for binary_list in binaries:
+            for binary in binary_list:
+                print(binary)
+            print("---------------------------")
+        #sys.exit()
     return binaries
 
 # runtime and heap profiling input [binary_run, binaries_heap]
@@ -153,6 +183,7 @@ def run(binaries, id, return_dict):
     # 4: max_resident_set_sizes
     # 5: return code
     rc = [[] for _ in range(6)]
+    print("DEBUG: run with {} binaries".format(len(binaries)))
     for i, binary in enumerate(binaries):
         rc[0].append(binary)
         path_to_binary = os.path.join(src_dir, binary)
@@ -182,7 +213,7 @@ def run(binaries, id, return_dict):
             path_to_space_out = os.path.join(result_dir, binary + ".space.out")
             cmd = space_cmd.format(str(path_to_binary), str(path_to_space_log), str(path_to_space_out))
             sum_max_rss = 0
-            for i in range(runs):
+            for _ in range(runs):
                 code = os.system(cmd)
                 # extract 'maximum resident set size'
                 with open(path_to_space_out, 'r') as f:
@@ -192,6 +223,8 @@ def run(binaries, id, return_dict):
                         print("ERROR: Could not extract resident size from '" + str(path_to_time_out) + "'")
                         sys.exit(0)
                     sum_max_rss += int(mobj.group(1))
+                    if binary.find("GS_dna4_GAPFLAG_0_HEAP_POW_") == True:
+                        print("DEBUG: Run {} with rss = {}".format(binary, mobj.group(1)))
             rc[4].append(int(sum_max_rss/runs))
     print("DEBUG: add result_collector with id = " + str(id))
     return_dict[id] = rc
@@ -199,20 +232,21 @@ def run(binaries, id, return_dict):
 # run binaries in parallel
 # input: [[binary_run, binaries_heap]]
 def run_parallel(binary_llist):
-    procs = []
     manager = mp.Manager()
     return_dict = manager.dict()
-
+    num_workers = mp.cpu_count() - 2
+    print("binary list in run_parallel: ")
+    for binary in binary_llist:
+        print(binary)
+    #sys.exit()
     for i, binary_list in enumerate(binary_llist):
         print("STATUS: launch swap " + str(i))
         p = mp.Process(target=run, args=(binary_list, i, return_dict))
         for binary in binary_list:
             print("STATUS: start " + binary)
-        print("STATUS: swap " + str(i) + " done")
         p.start()
-        procs.append(p)
-        for p in procs:
-            p.join()
+        p.join()
+        print("STATUS: swap " + str(i) + " done")
     return return_dict
 
 # create cpp files from template and compilation strings,
@@ -223,7 +257,7 @@ def generate_src_files(idx):
     seed = random.random()
     compile_str_list = []
     print(benchmarks[idx-1])
-    for i, benchmark in enumerate(benchmarks[idx-1][:2]):
+    for i, benchmark in enumerate(benchmarks[idx-1]):
         for base_type in base_types:
             for GAP_FLAG in range(2):
                 benchmark_name_run = benchmark + "_".join(["", base_type, "GAPFLAG", str(GAP_FLAG), "RUN", "REPEAT", str(param.REPEAT), "POW1", str(param.POW1), "POW2", str(param.POW2)])
@@ -369,5 +403,6 @@ if __name__ == "__main__":
         print("STATUS: Source file compilation done\nSTATUS: Execute binaries in parallel ...")
         result_dict = run_parallel(binaries)
         print("STATUS: Binary execution done")
+
         print_results(result_dict)
         cleanup()

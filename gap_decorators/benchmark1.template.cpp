@@ -23,8 +23,10 @@
 #include "../gapped_sequence.hpp"
 #include "../utilities.hpp"
 
-// g++ -std=c++17 -DNDEBUG -O3 -msse4.2 -I/<path_to>/include -L/<path_to>/lib -lsdsl -ldivsufsort -ldivsufsort64 -I/<path_to>/seqan3/include/ -I. -I/<path_to>/range-v3/include/ -fconcepts -Wall -Wextra benchmark1.cpp -o <[benchmark]>
-
+/*
+* Run benchmark individually with
+*   g++ -std=c++17 -DNDEBUG -O3 -msse4.2 -I/<path_to>/include -L/<path_to>/lib -lsdsl -ldivsufsort -ldivsufsort64 -I/<path_to>/seqan3/include/ -I. -I/<path_to>/range-v3/include/ -fconcepts -Wall -Wextra <[benchmark]>.cpp -o <[benchmark]>
+*/
 #define LOG_LEVEL_<[LOG_LEVEL]> 0
 #define SEED <[seed]>
 #define NUM_OP 1024     // number of operations performed per experiment
