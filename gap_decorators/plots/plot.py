@@ -12,7 +12,7 @@ RTavg = 5   # position of average runtime
 RTstddev = 6    # position of runtime deviation
 HS = 7  # position of heap size
 
-result_files = ['../results/benchmark_1_1_2_3.csv']
+result_files = ['../results/out_1_32_2_8.csv', '../results/out_2_32_2_8.csv']
 
 def plot(benchmark_idx):
     R = []  # Result matrix

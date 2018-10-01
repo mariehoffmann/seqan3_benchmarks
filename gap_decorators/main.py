@@ -80,11 +80,11 @@ sed = "sed -i.bak -e 's|<\[{}\]>|{}|g' -- ./src/{}"
 # 3: runtime_stddev_list
 # 4: max_resident_set_sizes
 # 5: return code
-def print_results(result_dict):
+def print_results(result_dict, outfile="out.csv"):
     d = dict(result_dict)
     print(d.items())
     benchmark_rx = re.compile("^benchmark(\d+)_(\w+)_([\w\d]+)_GAPFLAG_([0,1]).+?$")
-    with open(os.path.join(result_dir, "out.csv"), 'w') as f:
+    with open(os.path.join(result_dir, outfile), 'w') as f:
         f.write(",".join(["benchmark_id", "gap_decorator", "alphabet_type", "GAPFLAG", "seq_len", "runtime avg [ns]", "runtime stddev [ns]", "maximum_resident_set_size"]) + "\n")
         for id, item in d.items():
             print("RESULT: " + item[0][0])
@@ -108,7 +108,7 @@ def print_results(result_dict):
                 f.write(",".join([benchmark_id, gap_decorator, alphabet_type, GAPFLAG, str(seq_len), str(runtime_avg), str(runtime_stddev), str(max_resident_set_size)]) + "\n")
             print("")
             #f.write("\n")
-        print("STATUS: output written to " + str(os.path.join(result_dir, "out.csv")))
+        print("STATUS: output written to " + str(os.path.join(result_dir, outfile)))
 
 # delete intermediate result and backup files
 def cleanup():
@@ -223,8 +223,6 @@ def run(binaries, id, return_dict):
                         print("ERROR: Could not extract resident size from '" + str(path_to_time_out) + "'")
                         sys.exit(0)
                     sum_max_rss += int(mobj.group(1))
-                    if binary.find("GS_dna4_GAPFLAG_0_HEAP_POW_") == True:
-                        print("DEBUG: Run {} with rss = {}".format(binary, mobj.group(1)))
             rc[4].append(int(sum_max_rss/runs))
     print("DEBUG: add result_collector with id = " + str(id))
     return_dict[id] = rc
@@ -404,5 +402,5 @@ if __name__ == "__main__":
         result_dict = run_parallel(binaries)
         print("STATUS: Binary execution done")
 
-        print_results(result_dict)
+        print_results(result_dict, "out_{}_{}_{}_{}.csv".format(sys.argv[1], param.REPEAT, param.POW1, param.POW2))
         cleanup()

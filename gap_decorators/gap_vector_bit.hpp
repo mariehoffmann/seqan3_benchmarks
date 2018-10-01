@@ -175,14 +175,7 @@ namespace seqan3 {
         //!\brief Return gapped sequence length.
         size_type size() noexcept
         {
-            // either keep it uptodate, also when resizing underlying sequence (del 0s!) or use rank
-            // return data->gap_vector.size();
-            if (LOG_LEVEL_GV_BIT) std::cout << "SIZE: query dirty bit ..\n";
-            if (data->dirty)
-                update_support_structures();
-            //auto s = data->rank_1_support.rank(data->gap_vector.size()-1) + data->sequence->size();
             auto s = data->gap_vector.size();
-            if (LOG_LEVEL_GV_BIT) std::cout << "SIZE: s = " << s << std::endl;
             return s;
         }
 
@@ -267,6 +260,7 @@ namespace seqan3 {
                 for (size_type i = 0; i < this->size(); ++i) std::cout << data->gap_vector[i];
                 std::cout << std::endl;
             }
+            data->dirty = true;
             return true;
         }
 
@@ -418,8 +412,27 @@ namespace seqan3 {
          */
         difference_type map_to_underlying_position(size_type const position_gapped)
         {
+            //std::cout << "DEBUG: enter map_to_underlying_position\n";
+            //std::cout << "DEBUG: gap_vector.size = " << data->gap_vector.size() << std::endl;
             if (data->dirty)
                 update_support_structures();
+            //std::cout << "DEBUG: map2underlying\n";
+            //size_type s = this->size();
+            //size_type min_val = std::min<size_type>(position_gapped+1, s);
+
+            //auto num_gaps = data->rank_1_support.rank(min_val);
+            /*std::cout << "rank_1(" << min_val << ") = " << num_gaps << std::endl;
+            std::cout << "rank_1(" << min_val-1 << ") = " << data->rank_1_support.rank(min_val-1) << std::endl;
+            std::cout << "rank_1(" << min_val-2 << ") = " << data->rank_1_support.rank(min_val-2) << std::endl;
+            std::cout << "rank_1(" << min_val-3 << ") = " << data->rank_1_support.rank(min_val-3) << std::endl;
+            std::cout << "rank_1(" << min_val-4 << ") = " << data->rank_1_support.rank(min_val-4) << std::endl;
+            std::cout << "rank_1(" << min_val-5 << ") = " << data->rank_1_support.rank(min_val-5) << std::endl;
+
+            std::cout << "rank_1(" << min_val/2 << ") = " << data->rank_1_support.rank(min_val/2) << std::endl;
+            */
+            //difference_type input = static_cast<difference_type>(position_gapped);
+            //std::cout << "DEBUG: map2underlying, casted input is: " << input << std::endl;
+            //std::cout << "DEBUG: difference input-num_gaps = " << (input - num_gaps) << std::endl;
             return static_cast<difference_type>(position_gapped) -
             static_cast<difference_type>(data->rank_1_support.rank(std::min<size_type>(position_gapped+1, this->size())));
         }
@@ -431,9 +444,14 @@ namespace seqan3 {
         //!\brief Return reference to aligned sequence for given index.
         constexpr reference operator[](size_type const idx) // const noexcept(noexcept((*host)[pos+n]))
         {
+            //std::cout << "DEBUG: [], test assert\n";
             assert(idx < size());
+            //std::cout << "DEBUG: data->gap_vector[idx]\n";
             if (!data->gap_vector[idx]){
+            //    std::cout << "DEBUG: [], idx = " << idx << " map_to_underlying_position\n";
                 size_type const pos = map_to_underlying_position(idx);
+            //    std::cout << "DEBUG: [], return sequence[" << pos << "]\n";
+            //    std::cout << "DEBUG: [], current underlying sequence size is " << (data->sequence->size()) << std::endl;
                 return value_type((*data->sequence)[pos]);
             }
             return gap::GAP;
@@ -450,22 +468,37 @@ namespace seqan3 {
 
         bool resize(size_type new_size)
         {
-            if (LOG_LEVEL_GV_BIT) std::cout << "start resizing ... ";
+            //if (LOG_LEVEL_GV_BIT)
+            //std::cout << "DEBUG: resize -> start resizing ... \n";
+            if (data->dirty){
+            //    std::cout << "DEBUG: resize -> dirty, update support\n";
+                update_support_structures();
+            }
+            //std::cout << "DEBUG: resize -> test assert statement with size computation\n";
             assert(new_size <= this->size());
             //assert(data->sequence->size() > 0);
+            //std::cout << "DEBUG: resize -> start shrinkage loop\n";
             for (auto pos = this->size() - 1; pos >= new_size; --pos)
             {
-                if (LOG_LEVEL_GV_BIT) std::cout << "current pos = " << pos << ", gseq[pos] = " << (value_type)(*this)[pos] << std::endl;
+                if (LOG_LEVEL_GV_BIT)
+                    std::cout << "current pos = " << pos;
+                //std::cout << ", gap_decorator[pos] = " << (value_type)(*this)[pos] << std::endl;
                 if ((value_type)(*this)[pos] == gap::GAP)
                 {
+                    //std::cout << "DEBUG: resize -> erase_gap\n";
                     erase_gap(pos);
                 }
                 else
                 {
+                    //std::cout << "DEBUG: resize -> shorten underlying sequence\n";
                     data->sequence->resize(data->sequence->size() - 1);
                 }
+                update_support_structures();
             }
+            //std::cout << "DEBUG: resize -> resize gap_vector\n";
             data->gap_vector.resize(new_size);
+            //std::cout << "DEBUG: resize -> update support structures\n";
+            update_support_structures();
             if (LOG_LEVEL_GV_BIT) std::cout << "... final size = " << this->size() << std::endl;
             return true;
         }

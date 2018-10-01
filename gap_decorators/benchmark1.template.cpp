@@ -1,4 +1,5 @@
 // <[info]>
+// Read-only on ungapped or gapped Sequence
 
 #include <algorithm>
 #include <cstdlib>
@@ -23,10 +24,8 @@
 #include "../gapped_sequence.hpp"
 #include "../utilities.hpp"
 
-/*
-* Run benchmark individually with
-*   g++ -std=c++17 -DNDEBUG -O3 -msse4.2 -I/<path_to>/include -L/<path_to>/lib -lsdsl -ldivsufsort -ldivsufsort64 -I/<path_to>/seqan3/include/ -I. -I/<path_to>/range-v3/include/ -fconcepts -Wall -Wextra <[benchmark]>.cpp -o <[benchmark]>
-*/
+// g++ -std=c++17 -fconcepts -Wall -Wextra -I $SEQAN3_DIR/include -I $RANGEV3_DIR/include -I $SDSL_DIR/include ./src/<[benchmark]>.cpp -o ./src/<[benchmark]>
+
 #define LOG_LEVEL_<[LOG_LEVEL]> 0
 #define SEED <[seed]>
 #define NUM_OP 1024     // number of operations performed per experiment

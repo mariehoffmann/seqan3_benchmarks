@@ -1,4 +1,5 @@
 // <[info]>
+// Insert/Erase gap at random position. Gaps of length 2 will be inserted and alternating head or tail erased.
 
 #include <algorithm>
 #include <cstdlib>
@@ -23,7 +24,7 @@
 #include "../gapped_sequence.hpp"
 #include "../utilities.hpp"
 
-// g++ -std=c++17 -DNDEBUG -O3 -msse4.2 -I/<path_to>/include -L/<path_to>/lib -lsdsl -ldivsufsort -ldivsufsort64 -I/<path_to>/seqan3/include/ -I. -I/<path_to>/range-v3/include/ -fconcepts -Wall -Wextra benchmark1.cpp -o <[benchmark]>
+// g++ -std=c++17 -fconcepts -Wall -Wextra -I $SEQAN3_DIR/include -I $RANGEV3_DIR/include -I $SDSL_DIR/include ./src/<[benchmark]>.cpp -o ./src/<[benchmark]>
 
 #define LOG_LEVEL_<[LOG_LEVEL]> 0
 #define SEED <[seed]>
@@ -35,7 +36,7 @@
 
 using namespace seqan3;
 
-void benchmark1(int csv_flag)  //std::string const & binary_name)
+void benchmark2(int csv_flag)  //std::string const & binary_name)
 {
     using alphabet_type = <[alphabet_type]>; // to be replace by parser
     using inner_type = typename <[container_type]>; //std::vector<alphabet_type>;
@@ -118,7 +119,7 @@ void benchmark1(int csv_flag)  //std::string const & binary_name)
             std::mt19937 generator(SEED); //Standard mersenne_twister_engine seeded with rd()
             std::uniform_real_distribution<> uni_dis(0.0, static_cast<double>(seq_len));
 
-            size_type pos;
+            size_type pos, pos_del;
             std::chrono::high_resolution_clock::time_point t1, t2;
 
             // case gapped sequence: vector<alphabet_type>, else: vector<gapped<alphabet_type>>
@@ -128,15 +129,16 @@ void benchmark1(int csv_flag)  //std::string const & binary_name)
                 // sample read position
                 pos = uni_dis(generator);
 
-                // erase
+                // insert & erase
+                pos_del = (j % 2) ? pos : pos+1;
                 t1 = std::chrono::high_resolution_clock::now();
-                aux &= gap_decorator.insert_gap(pos, 1);
-                aux &= gap_decorator.erase_gap(pos, pos+1);
+                aux &= gap_decorator.insert_gap(pos, 2);
+                aux &= gap_decorator.erase_gap(pos_del, pos_del+1);
                 t2 = std::chrono::high_resolution_clock::now();
-                durations[round*REPEAT + j] = std::chrono::duration_cast<std::chrono::nanoseconds>(t2 - t1).count();
+                durations[round*REPEAT + j] = std::chrono::duration_cast<std::chrono::nanoseconds>(t2 - t1).count()/2;
 
             } // REPEAT read ops
-            std::cerr << aux << std::endl;
+            //std::cerr << aux << std::endl;
         } // N experiment repetitions
 
         if (LOG_LEVEL_<[LOG_LEVEL]>) std::cout << seq_len << " done\n";
@@ -178,7 +180,7 @@ int main(int argc, char** argv)
         return 2;
     }
     std::cout << "Start " << argv[0] << " ...\n";
-    benchmark1((argc == 2) ? atoi(argv[1]) : 0);
+    benchmark2((argc == 2) ? atoi(argv[1]) : 0);
     std::cout << "Finished " << argv[0] << " successfully.\n";
     return 1;
 }
