@@ -62,7 +62,7 @@ namespace seqan3 {
 
         constexpr anchor_list & operator=(anchor_list && rhs) = default;
 
-        ~anchor_list() = default; //{data->gap_list.clear();};
+        ~anchor_list() {data->gap_list.clear();};
 
         constexpr anchor_list(inner_type * sequence): data{new data_t{sequence}} {};
 
@@ -124,16 +124,18 @@ namespace seqan3 {
         bool insert_gap(size_type const pos, size_type const size=1)
         {
             assert(pos <= this->size());
-            if (LOG_LEVEL_AL) std::cout << "Enter insert_gap\n";
+            if (LOG_LEVEL_AL) std::cout << "Enter insert_gap with (pos,size) = (" << pos << ", " << size << ")\n";
             auto it = std::lower_bound(data->gap_list.begin(), data->gap_list.end(), gap_t{pos, 0}, [](gap_t lhs, gap_t rhs) -> bool { return lhs.first < rhs.first;});
             if (LOG_LEVEL_AL) std::cout << "lower_bound is end(): " << (it == data->gap_list.end()) << std::endl;
-            auto it_succ = it;
+
+            auto it_tail = data->gap_list.begin();
             // case: extend gap head
             if (it != data->gap_list.end() && (*it).first == pos)
             {
                 if (LOG_LEVEL_AL) std::cout << "case 1: gap head extension\n";
                 (*it).second += size;
-                ++it_succ;
+                //++it_succ;
+                it_tail = it+1;
             }
             // case: merge with preceeding gap
             else if (it != data->gap_list.begin() && ((*(it-1)).first + (*(it-1)).second) >= pos)
@@ -153,25 +155,56 @@ namespace seqan3 {
                     data->gap_list.push_back(gap_t{pos, size});
                     if (LOG_LEVEL_AL) std::cout << "\tpush_back done\n";
                     // updating iterator to successor
-                    it_succ = data->gap_list.end();
+                    //it_succ = data->gap_list.end();
+                    it_tail = data->gap_list.end();
                 }
                 else
                 {
-                    if (LOG_LEVEL_AL) std::cout << "\tsubcase: insert at it-1\n";
+                    if (LOG_LEVEL_AL){
+                        std::cout << "\tsubcase: insert at it-1\n";
+                        std::cout << "it points to (" << (*it).first << ", " << (*it).second << ")" << std::endl;
+                    }
                     if (it == data->gap_list.begin())
                     {
+                        if (LOG_LEVEL_AL) std::cout << "\t\tinsert at beginning\n";
                         data->gap_list.insert(it, gap_t{pos, size});
-                        it_succ = data->gap_list.begin() + 1;
+                        it_tail = data->gap_list.begin() + 1;
                     }
-                    else
-                        data->gap_list.insert(it-1, gap_t{pos, size});
-                }
+                    else{
+                        if (LOG_LEVEL_AL) std::cout << "\t\tinsert before iterator\n";
+                        size_type offset = it-data->gap_list.begin() + 1;
+                        std::cout << "pos = " << pos << std::endl;
+                        data->gap_list.insert(it, gap_t{pos, size});
+                        it_tail = data->gap_list.begin() + offset;
+                        std::cout << "update it_tail at (" << (*it_tail).first <<"," << (*it_tail).second << ")" <<std::endl;
+
+                }}
             }
             // update tailing gaps
-            for (; it_succ < data->gap_list.end(); ++it_succ)
+            if (LOG_LEVEL_AL)
+            {
+                std::cout << "updating tail starting with (" << (*it_tail).first << ", " << (*it_tail).second << ")" << std::endl;
+            }
+            for (; it_tail < data->gap_list.end(); ++it_tail)
             {
                 if (LOG_LEVEL_AL) std::cout << "update tail" << std::endl;
-                (*it_succ).first += size;
+                (*it_tail).first += size;
+            }
+            // check for healthy state of gap list
+            if (LOG_LEVEL_AL)
+            {
+                size_type last_pos = 0;
+                for (auto it3 = data->gap_list.begin(); it3 < data->gap_list.end(); ++it3)
+                {
+                    if ((*it3).first < last_pos || (*it3).second <= 0){
+                        std::cout << "Error: gap list in wrong state: ";
+                        for (auto it4 = data->gap_list.begin(); it4 < data->gap_list.end(); ++it4)
+                            std::cout << "(" << (*it4).first << ", " << (*it4).second << "), ";
+                        std::cout << std::endl;
+                        exit(0);
+                    }
+                    last_pos = (*it3).first;
+                }
             }
             return true;
         }
@@ -242,11 +275,30 @@ namespace seqan3 {
             }
             if (LOG_LEVEL_AL)
             {
-                std::cout << "updated gap_list is: ";
-                for (auto gap : data->gap_list)
-                    std::cout << "(" << gap.first << ", " << gap.second << "), ";
+                std::cout << "updated gap_list has " << data->gap_list.size() << " many gaps: ";
+                if (data->gap_list.size() > 100)
+                    exit(-1);
+                for (unsigned int q = 0; q < data->gap_list.size(); ++q)
+                    std::cout << "(" << data->gap_list[q].first << ", " << data->gap_list[q].second << "), ";
                 std::cout << std::endl;
             }
+            // check for healthy state of gap list
+            if (LOG_LEVEL_AL)
+            {
+                size_type last_pos = 0;
+                for (auto it3 = data->gap_list.begin(); it3 < data->gap_list.end(); ++it3)
+                {
+                    if ((*it3).first < last_pos || (*it3).second <= 0){
+                        std::cout << "Error: gap list in wrong state: ";
+                        for (auto it4 = data->gap_list.begin(); it4 < data->gap_list.end(); ++it4)
+                            std::cout << "(" << (*it4).first << ", " << (*it4).second << "), ";
+                        std::cout << std::endl;
+                        exit(0);
+                    }
+                    last_pos = (*it3).first;
+                }
+            }
+            if (LOG_LEVEL_AL) std::cout << "... exit erase_gap\n";
             return true;
         }
 

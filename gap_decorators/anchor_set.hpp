@@ -267,7 +267,7 @@ private:
     void update(size_type const pos, size_type const size)
     {
         if (LOG_LEVEL_AS) std::cout << "DEBUG: update with pos = " << pos << " and size_del = " << size << std::endl;
-        assert(pos >= size);
+        //assert(pos >= size);
         // post: update succeeding gaps  by shifting position key right, start from right to left to avoid collisions
         auto it = data->anchor_idcs.lower_bound(pos + size + 1);
         if (LOG_LEVEL_AS)

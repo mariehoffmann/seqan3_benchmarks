@@ -1,5 +1,6 @@
 import csv
 import matplotlib.pyplot as plt
+import os
 import sys
 
 # format [benchmark_idx: %u, datastructure: %s, alphabet:%s, gapflag:%u, seqlen: %u, runtime: %f, runtime_stddev: %f, heap_size: %u]
@@ -12,15 +13,20 @@ RTavg = 5   # position of average runtime
 RTstddev = 6    # position of runtime deviation
 HS = 7  # position of heap size
 
-result_files = ['../results/out_1_32_2_8.csv', '../results/out_2_32_2_8.csv']
+result_dir = '../results'
+
+result_files = {1: ['out_1_32_2_8.csv', 'out_1_16_9_9.csv', 'out_1_16_10_10.csv', \
+'out_1_10_11_11', 'out_1_10_12_12.csv'], \
+2: ['out_2_32_2_8.csv', 'out_2_16_9_9.csv', 'out_2_16_10_10.csv']}
 
 def plot(benchmark_idx):
     R = []  # Result matrix
-    with open(result_files[benchmark_idx-1], 'r') as f:
-        csvreader = csv.reader(f, delimiter=',')
-        next(csvreader)
-        for row in csvreader:
-            R.append([int(row[0]), row[1], row[2], int(row[3]), int(row[4]), float(row[5]), float(row[6]), int(row[7])])
+    for filename in result_files[benchmark_idx]:
+        with open(os.path.join(result_dir, filename), 'r') as f:
+            csvreader = csv.reader(f, delimiter=',')
+            next(csvreader)
+            for row in csvreader:
+                R.append([int(row[0]), row[1], row[2], int(row[3]), int(row[4]), float(row[5]), float(row[6]), int(row[7])])
     for result in R:
         print(result)
 
