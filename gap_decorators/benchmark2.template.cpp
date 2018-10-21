@@ -95,7 +95,7 @@ void benchmark2(int csv_flag)  //std::string const & binary_name)
                 for (size_type i = gaps.size()-1; i != 0; --i)
                 {
                     if (LOG_LEVEL_<[LOG_LEVEL]>) std::cout << "gap_len = " << gaps[i] << std::endl;
-                    if (gaps[i] > 0)
+                    if (gaps[i] > 0 && gap_decorator.size() < seq_len)
                     {
                         if (LOG_LEVEL_<[LOG_LEVEL]>) std::cout << "insert gap (" << i << ", " << gaps[i] << ") into structure ...\n";
                         gap_decorator.insert_gap(i, gaps[i]);

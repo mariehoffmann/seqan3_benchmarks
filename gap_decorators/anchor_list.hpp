@@ -173,10 +173,9 @@ namespace seqan3 {
                     else{
                         if (LOG_LEVEL_AL) std::cout << "\t\tinsert before iterator\n";
                         size_type offset = it-data->gap_list.begin() + 1;
-                        std::cout << "pos = " << pos << std::endl;
                         data->gap_list.insert(it, gap_t{pos, size});
                         it_tail = data->gap_list.begin() + offset;
-                        std::cout << "update it_tail at (" << (*it_tail).first <<"," << (*it_tail).second << ")" <<std::endl;
+                        //std::cout << "update it_tail at (" << (*it_tail).first <<"," << (*it_tail).second << ")" <<std::endl;
 
                 }}
             }

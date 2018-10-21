@@ -98,7 +98,7 @@ void benchmark1(int csv_flag)  //std::string const & binary_name)
                 for (size_type i = gaps.size()-1; i != 0; --i)
                 {
                     if (LOG_LEVEL_<[LOG_LEVEL]>) std::cout << "gap_len = " << gaps[i] << std::endl;
-                    if (gaps[i] > 0)
+                    if (gaps[i] > 0 && gap_decorator.size() < seq_len)
                     {
                         if (LOG_LEVEL_<[LOG_LEVEL]>) std::cout << "insert gap (" << i << ", " << gaps[i] << ") into structure ...\n";
                         gap_decorator.insert_gap(i, gaps[i]);
@@ -106,12 +106,12 @@ void benchmark1(int csv_flag)  //std::string const & binary_name)
                         gap_acc += gaps[i];
                     }
                 }
+                if (LOG_LEVEL_<[LOG_LEVEL]>) std::cout << "num gaps inserted: " << gap_acc << std::endl;
+                // shorten container for not exceeding target sequence length
+                if (LOG_LEVEL_<[LOG_LEVEL]>) std::cout << "resize with final seq_len = " << seq_len << std::endl;
+                gap_decorator.resize(seq_len);
+                if (LOG_LEVEL_<[LOG_LEVEL]>) std::cout << "... done\n";
             }
-            if (LOG_LEVEL_<[LOG_LEVEL]>) std::cout << "num gaps inserted: " << gap_acc << std::endl;
-            // shorten container for not exceeding target sequence length
-            if (LOG_LEVEL_<[LOG_LEVEL]>) std::cout << "resize with final seq_len = " << seq_len << std::endl;
-            gap_decorator.resize(seq_len);
-            if (LOG_LEVEL_<[LOG_LEVEL]>) std::cout << "... done\n";
 
             int gap_ctr = 0;
             for (auto s : gs){ if (s == gap::GAP) ++gap_ctr;}

@@ -65,24 +65,19 @@ public:
     // for benchmark only
     bool resize(size_type new_size)
     {
-        if (LOG_LEVEL_AS) std::cout << "start resizing ... \n";
         assert(new_size <= this->size());
         //assert(data->sequence->size() > 0);
         for (auto pos = this->size() - 1; pos >= new_size; --pos)
         {
-            if (LOG_LEVEL_AS) std::cout << "\tcurrent pos = " << pos << std::endl;
             if ((value_type)(*this)[pos] == gap::GAP)
             {
-                if (LOG_LEVEL_AS) std::cout << "\tcase: del gap";
                 erase_gap(pos);
             }
             else
             {
-                if (LOG_LEVEL_AS) std::cout << "\tcase: del letter";
                 data->sequence->resize(data->sequence->size() - 1);
             }
         }
-        if (LOG_LEVEL_AS) std::cout << "... final size = " << this->size() << std::endl;
         return true;
     }
 
@@ -270,14 +265,6 @@ private:
         //assert(pos >= size);
         // post: update succeeding gaps  by shifting position key right, start from right to left to avoid collisions
         auto it = data->anchor_idcs.lower_bound(pos + size + 1);
-        if (LOG_LEVEL_AS)
-        {
-            std::cout << *it << std::endl;
-            std::cout << (it == data->anchor_idcs.end()) << std::endl;
-            std::cout << (it != data->anchor_idcs.end()) << std::endl;
-        }
-
-        if (LOG_LEVEL_AS) {std::cout << "anchors: "; for (auto a : data->anchor_idcs) std::cout << a << ", ";}
 
         while (it != data->anchor_idcs.end()) //for (int i = 0; it != data->anchor_idcs.end(), i < 5; ++i)
         {

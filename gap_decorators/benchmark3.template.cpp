@@ -1,4 +1,5 @@
 // <[info]>
+// Insert/Erase gap from left to right. Gaps of length 2 will be inserted and alternating head or tail erased.
 
 #include <algorithm>
 #include <cstdlib>
@@ -23,19 +24,18 @@
 #include "../gapped_sequence.hpp"
 #include "../utilities.hpp"
 
-// g++ -std=c++17 -DNDEBUG -O3 -msse4.2 -I/<path_to>/include -L/<path_to>/lib -lsdsl -ldivsufsort -ldivsufsort64 -I/<path_to>/seqan3/include/ -I. -I/<path_to>/range-v3/include/ -fconcepts -Wall -Wextra benchmark1.cpp -o <[benchmark]>
+// g++ -std=c++17 -fconcepts -Wall -Wextra -I $SEQAN3_DIR/include -I $RANGEV3_DIR/include -I $SDSL_DIR/include ./src/<[benchmark]>.cpp -o ./src/<[benchmark]>
 
 #define LOG_LEVEL_<[LOG_LEVEL]> 0
-#define SEED <[seed]>
 #define NUM_OP 1024     // number of operations performed per experiment
-#define REPEAT <[REPEAT]>  // TODO: segfault when running with REPEAT >= 2<<9
+#define REPEAT <[REPEAT]>
 #define POW1 <[POW1]>
 #define POW2 <[POW2]>
 #define GAP_FLAG <[GAP_FLAG]>   // 0: operate on ungapped sequence, 1: operate on already gapped sequence
 
 using namespace seqan3;
 
-void benchmark1(int csv_flag)  //std::string const & binary_name)
+void benchmark3(int csv_flag)  //std::string const & binary_name)
 {
     using alphabet_type = <[alphabet_type]>; // to be replace by parser
     using inner_type = typename <[container_type]>; //std::vector<alphabet_type>;
@@ -55,11 +55,6 @@ void benchmark1(int csv_flag)  //std::string const & binary_name)
     std::vector<size_type> gaps(0);
     // store accumulated statistics
     std::vector<stats<time_type, size_type>> results;
-
-    // seed random number generator
-    std::default_random_engine generator;
-    generator.seed(SEED);
-
     std::array<time_type, NUM_OP*REPEAT> durations;
     time_type avg_duration, stddev_duration;
     for (auto seq_len : seq_lengths)
@@ -68,6 +63,7 @@ void benchmark1(int csv_flag)  //std::string const & binary_name)
         if (LOG_LEVEL_<[LOG_LEVEL]>) std::cout << "reset durations ...\n";
         std::fill(durations.begin(),durations.end(), 0);
         if (LOG_LEVEL_<[LOG_LEVEL]>) std::cout << "done, continue benchmark with seq_len = " << seq_len << std::endl;
+        size_type pos = 0, pos_del;
         for (long unsigned int round = 0; round < NUM_OP; ++round)
         {
             if (LOG_LEVEL_<[LOG_LEVEL]>) std::cout << "start resizing ...\n";
@@ -85,9 +81,6 @@ void benchmark1(int csv_flag)  //std::string const & binary_name)
             sample<size_type>(&gaps, seq_len);
             if (LOG_LEVEL_<[LOG_LEVEL]>) std::cout << "sampling done" << std::endl;
 
-            // i) anchor list implementation
-            if (LOG_LEVEL_<[LOG_LEVEL]>) std::cout << "init gap decorator al ...\n";
-
             <[gap_decorator]><inner_type> gap_decorator(&seq);
 
             // insert gaps
@@ -97,7 +90,7 @@ void benchmark1(int csv_flag)  //std::string const & binary_name)
                 for (size_type i = gaps.size()-1; i != 0; --i)
                 {
                     if (LOG_LEVEL_<[LOG_LEVEL]>) std::cout << "gap_len = " << gaps[i] << std::endl;
-                    if (gaps[i] > 0)
+                    if (gaps[i] > 0 && gap_decorator.size() < seq_len)
                     {
                         if (LOG_LEVEL_<[LOG_LEVEL]>) std::cout << "insert gap (" << i << ", " << gaps[i] << ") into structure ...\n";
                         gap_decorator.insert_gap(i, gaps[i]);
@@ -114,24 +107,28 @@ void benchmark1(int csv_flag)  //std::string const & binary_name)
 
             int gap_ctr = 0;
             for (auto s : gs){ if (s == gap::GAP) ++gap_ctr;}
+            if (LOG_LEVEL_<[LOG_LEVEL]>) std::cout << "gap proportion: " << (float)gap_ctr/(float)seq_len << std::endl;
 
-            size_type pos;
             std::chrono::high_resolution_clock::time_point t1, t2;
+
+            // case gapped sequence: vector<alphabet_type>, else: vector<gapped<alphabet_type>>
             bool aux = true;
-            for (auto j = 0; j < REPEAT; ++j) // for benchmark 2 and 3 reduce REPEAT
+
+            for (size_type j = 0; j < std::min<size_type>(REPEAT, seq_len); ++j)
             {
-                // circular insert/erase position
-                pos = j % seq_len;
+                // read from left to right
+                pos = j;
 
-                // erase and insert
+                pos_del = (j%2) ? pos : pos+1;
+                // insert & erase
                 t1 = std::chrono::high_resolution_clock::now();
-                aux &= gap_decorator.insert_gap(pos, 1);
-                aux &= gap_decorator.erase_gap(pos, pos+1);
+                aux &= gap_decorator.insert_gap(pos, 2);
+                aux &= gap_decorator.erase_gap(pos_del, pos_del+1);
                 t2 = std::chrono::high_resolution_clock::now();
-                durations[round*REPEAT + j] = std::chrono::duration_cast<std::chrono::nanoseconds>(t2 - t1).count();
-
+                durations[round*REPEAT + j] = std::chrono::duration_cast<std::chrono::nanoseconds>(t2 - t1).count()/2;
+                ++pos;
             } // REPEAT read ops
-            std::cerr << aux << std::endl;
+            //std::cerr << aux << std::endl;
         } // N experiment repetitions
 
         if (LOG_LEVEL_<[LOG_LEVEL]>) std::cout << seq_len << " done\n";
@@ -142,7 +139,7 @@ void benchmark1(int csv_flag)  //std::string const & binary_name)
         results.push_back(stats<time_type, size_type>{seq_len, NUM_OP*REPEAT, avg_duration, stddev_duration});
 
     } // seq_len
-    std::cout << "Benchmark 2: insert with subsequent erase at random positions on GAP_FLAG= " << GAP_FLAG << " sequence\nwith " << REPEAT << " repetitions and " << NUM_OP << " read operations per experiment\n";
+    std::cout << "Benchmark 3: insert with subsequent erase at from left to right into gapped = " << GAP_FLAG << " sequence\nwith min(seq_len, " << REPEAT << ") repetitions and " << NUM_OP << " read operations per experiment\n";
     std::cout << "seq_len\t\tavg\u00B1stddev\t\tspace consumption\n---------------------------------------\n";
 
     for (auto it = results.begin(); it < results.end(); ++it)
@@ -173,7 +170,7 @@ int main(int argc, char** argv)
         return 2;
     }
     std::cout << "Start " << argv[0] << " ...\n";
-    benchmark1((argc == 2) ? atoi(argv[1]) : 0);
+    benchmark3((argc == 2) ? atoi(argv[1]) : 0);
     std::cout << "Finished " << argv[0] << " successfully.\n";
     return 1;
 }
