@@ -19,6 +19,7 @@
 
 #include "../anchor_list.hpp"
 #include "../anchor_set.hpp"
+#include "../anchor_set2.hpp"
 #include "../gap_vector_bit.hpp"
 #include "../gap_vector_sd.hpp"
 #include "../gapped_sequence.hpp"
@@ -95,16 +96,13 @@ void benchmark1(int csv_flag)  //std::string const & binary_name)
             size_type gap_acc = 0;
             if (GAP_FLAG)
             {
-                for (size_type i = gaps.size()-1; i != 0; --i)
+                for (size_type i = 0; i < gaps.size(); ++i)
                 {
                     if (LOG_LEVEL_<[LOG_LEVEL]>) std::cout << "gap_len = " << gaps[i] << std::endl;
-                    if (gaps[i] > 0 && gap_decorator.size() < seq_len)
-                    {
-                        if (LOG_LEVEL_<[LOG_LEVEL]>) std::cout << "insert gap (" << i << ", " << gaps[i] << ") into structure ...\n";
-                        gap_decorator.insert_gap(i, gaps[i]);
-                        //if (LOG_LEVEL_<[LOG_LEVEL]>) print_sequence<<[gap_decorator]><std::vector<alphabet_type>>>(gap_decorator);
-                        gap_acc += gaps[i];
-                    }
+                    if (LOG_LEVEL_<[LOG_LEVEL]>) std::cout << "insert gap (" << i << ", " << gaps[i] << ") into structure ...\n";
+                    gap_decorator.insert_gap(i + gap_acc, gaps[i]);
+                    gap_acc += gaps[i];
+                    if (i + gap_acc >= seq_len) break;
                 }
                 if (LOG_LEVEL_<[LOG_LEVEL]>) std::cout << "num gaps inserted: " << gap_acc << std::endl;
                 // shorten container for not exceeding target sequence length

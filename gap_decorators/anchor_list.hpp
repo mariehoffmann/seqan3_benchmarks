@@ -1,6 +1,7 @@
 /*
  Version with list of anchor gaps, i.e. a vector with pairs of virtual start position and gap length.
- Gap lengths are not accumulated, but anchor positions not relative (in contrast to classical anchor gap approach?), but virtual, i.e. on every insertion in the middle, tailing gaps need to be corrected by the new positional offset.
+ Gap lengths are not accumulated, but anchor positions not relative (in contrast to classical anchor gap approach),
+ but virtual, i.e. on every insertion in the middle, tailing gaps need to be corrected by the new positional offset.
 
  */
 

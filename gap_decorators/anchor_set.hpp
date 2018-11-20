@@ -7,9 +7,9 @@
 
 //#pragma once
 
-#ifndef MYHEADER_H
+#ifndef ANCHOR_SET_H
 
-#define MYHEADER_H
+#define ANCHOR_SET_H
 
 #include <iostream>
 #include <set>
@@ -123,14 +123,8 @@ public:
             // pre: pos not in anchor set, what's the next lower index?
             it = data->anchor_idcs.find(pos); // return value in case of no lower elem?
 
-            if (LOG_LEVEL_AS)
-            {
-                for (auto it2 = data->anchor_idcs.begin(); it2 != data->anchor_idcs.end(); ++it2)
-                    std::cout << "elem in anchor set: " << (*it2) << std::endl;
-            }
-            if (LOG_LEVEL_AS) std::cout << "lower elem = " << *it << std::endl;
             // add accumulated gaps from preceeding gap
-            if (it != data->anchor_idcs.begin()){
+            if (it != data->anchor_idcs.begin() && it != data->anchor_idcs.end()){
                 if (LOG_LEVEL_AS)
                     std::cout << "add acc from previous: " << data->idx2len[*prev(it)] << std::endl;
                 data->idx2len[pos] += data->idx2len[*--it];
