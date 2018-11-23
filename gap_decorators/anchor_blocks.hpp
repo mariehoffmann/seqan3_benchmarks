@@ -51,6 +51,7 @@ namespace seqan3 {
         using gap_sums_type     = std::vector<size_type>;
         using gap_block_type    = std::vector<gap_t>;
         using gap_block_list_t  = std::vector<gap_block_type>;
+        using location_type     = std::tuple<size_type, size_type, size_type>;
 
         constexpr anchor_blocks()
         {
@@ -147,7 +148,8 @@ namespace seqan3 {
             assert(pos <= this->size());
             std::cout << "enter insert_gap with (pos, size) = (" << pos << ", " << size << ")" << std::endl;
             // locate lower bounding gap
-            auto location = locate_gap(pos);
+            location_type location{0, 0, 0};
+            locate_gap(pos, location);
             size_type block_id = std::get<0>(location);
             size_type gap_id = std::get<1>(location);
             size_type gap_acc = std::get<2>(location);
@@ -188,7 +190,8 @@ namespace seqan3 {
         {
             assert(pos2 <= this->size());
             // a) locate gap
-            auto location = locate_gap(idx);
+            location_type location{0, 0, 0};
+            locate_gap(pos1, location);
             size_type block_id = std::get<0>(location);
             size_type gap_id = std::get<1>(location);
             size_type gap_acc = std::get<2>(location);
@@ -197,8 +200,8 @@ namespace seqan3 {
             assert(data->gap_block_list[block_id].size() == gap_id);
 
             // virtual start and end positions of lower bounding gap
-            size_type gap_vpos_start = data->gap_block_list[block_id][anchor_pos].first + gap_acc;
-            size_type gap_vpos_end = gap_vpos_start + data->gap_block_list[block_id][anchor_pos].second;
+            size_type gap_vpos_start = data->gap_block_list[block_id][gap_id].first + gap_acc;
+            size_type gap_vpos_end = gap_vpos_start + data->gap_block_list[block_id][gap_id].second;
 
             // TODO: test erase_gap
             // case:  erase complete gap
@@ -208,9 +211,9 @@ namespace seqan3 {
                 data->gap_block_list[block_id].erase(data->gap_block_list[block_id].begin() + gap_id);
             }
             // case: erase gap partially by shortening its length
-            else if (pos < gap_vpos_start)  // virtual gap start
+            else if (pos1 < gap_vpos_start)  // virtual gap start
             {
-                std::cout << "case: partial erase of gap " << anchor_pos << " in block " << block_id << std::endl;
+                std::cout << "case: partial erase of gap " << gap_id << " in block " << block_id << std::endl;
                 data->gap_block_list[block_id][gap_id] -= pos2 - pos1;
             }
             else
@@ -227,19 +230,23 @@ namespace seqan3 {
             assert(idx < this->size());
             // identify gap block
             // TODO: wasn't there a new Pyton-like feature allowing immediate unpacking?
-            auto location = locate_gap(idx);
+            location_type location{0, 0, 0};
+            locate_gap(idx, location);
             size_type block_id = std::get<0>(location);
             size_type gap_id = std::get<1>(location);
             size_type gap_acc = std::get<2>(location);
 
-            // case 1: designated block contains no gaps or all gaps are BEFORE
-            // input idx, i.e. iterator points to end() or to a succeeding gap
-            if (gap_id == data->gap_block_list[block_id].size() || data->gap_block_list[block_id][gap_id].first + gap_acc > idx)
+            // case 1: no gaps in this block
+            if (!data->gap_block_list[block_id].size())
                 return (*data->sequence)[idx - gap_acc];
-            // case 2: input idx points INTO gap
-            else if (data->gap_block_list[block_id][gap_id].first + gap_acc <= idx &&
-                data->gap_block_list[block_id][gap_id].first + (*it).second + gap_acc > idx)
+            // case 2: lower_bounding idx coincides with gap start
+            else if (data->gap_block_list[block_id][gap_id].first + gap_acc == idx)
                 return gap::GAP;
+            // case 3: preceeding gap overlaps with idx
+            else if (gap_id > 0 && data->gap_block_list[block_id][gap_id-1].first + data->gap_block_list[block_id][gap_id-1].second + gap_acc >= idx)
+                return gap::GAP;
+            else if (gap_id < data->gap_block_list[block_id][gap_id].first + gap_acc)
+                return (*data->sequence)[idx - gap_acc];
             else
                 std::cout << "ERROR: should reach this case\n";
             return gap::GAP;
@@ -250,7 +257,7 @@ namespace seqan3 {
         {
             while (this->size() > new_size)
             {
-                if (this->[new_size-1] == gap::GAP)
+                if ((value_type)(*this)[new_size-1] == gap::GAP)
                     erase_gap(new_size, new_size+1);
                 else
                     this->data->sequence.resize(this->data->sequence.size()-1);
@@ -260,32 +267,39 @@ namespace seqan3 {
     private:
 
         // Comparator (lambda, but with restriction of signature)
-        bool gap_cmp(gap_t g, gap_t h)
+        bool gap_cmp(const gap_t& lhs, const gap_t& rhs)
         {
-            return g.first < h.first;
+            return lhs.first < rhs.first;
         }
 
         // given a virtual position compute lower bounding gap and return block and gap indices.
         // lower bound is the first element in the gap block that is not less than
         // (i.e. greater or equal to) pos, or end of block if no such element is found
         // return (block_id, gap_id, gap_acc)
-        std::tuple<size_type, size_type, size_type> locate_gap(size_type const pos)
+        void locate_gap(size_type const pos, location_type &location)
         {
-            size_type block_id = 0, gap_id = 0; gap_acc = 0;
-            // 1. locate block
+            size_type block_id = 0, gap_id = 0, gap_acc = 0;
+            // 1. locate block and accumulate gaps
             auto it = data->gap_sums.begin();
             while (it != data->gap_sums.end() && (gap_acc + (*it) + block_id*block_size) < pos)
             {
                 gap_acc += *it;
                 ++block_id;
             }
+//            gap_acc = std::sum(data->gap_sums.begin(), data->gap_sums.begin() + block_id - 1, 0);
 
             // accumulate gaps before lower bound within designated block
-            auto it = std::lower_bound(data->gap_block_list[block_id].begin(),
-                data->gap_block_list[block_id].end(), gap_t{pos, 0}, gap_cmp);
-            gap_acc = std::accumulate(data->gap_block_list[block_id].begin(), it,
+            auto it2 = std::lower_bound(data->gap_block_list[block_id].begin(), data->gap_block_list[block_id].end(), gap_t{pos-gap_acc, 0},
+                [] (const auto& lhs, const auto& rhs) {
+                    return lhs.first < rhs.first;
+                });
+            gap_acc = std::accumulate(data->gap_block_list[block_id].begin(), it2,
                 gap_acc, [](size_type acc, gap_t gap){ return acc += gap.second;});
-            return std::make_tuple<size_type, size_type>(block_id, it - data->gap_block_list[block_id].begin(), gap_acc);
+            gap_id = static_cast<size_type>(it2 - data->gap_block_list[block_id].begin());
+            //return std::make_tuple<size_type, size_type, size_type>(block_id, gap_id, gap_acc);
+            std::get<0>(location) = block_id;
+            std::get<1>(location) = gap_id;
+            std::get<2>(location) = gap_acc;
         }
 
         struct data_t
