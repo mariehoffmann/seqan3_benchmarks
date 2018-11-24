@@ -70,9 +70,11 @@ namespace seqan3 {
 
         constexpr anchor_blocks(inner_type * sequence): data{new data_t{sequence}}
         {
-            size_type num_blocks = std::max<size_type>(1, sequence->size()/block_size);
+            size_type num_blocks = std::max<size_type>(1, sequence->size()/block_size + 1);
+            std::cout << "num of blocks: " << num_blocks << std::endl;
             data->gap_sums = gap_sums_type(num_blocks, 0);
             data->gap_block_list = gap_block_list_t(num_blocks, gap_block_type(0));
+            std::cout << "data->gap_block_list.size = " << data->gap_block_list.size() << std::endl;
         };
 
         auto begin() noexcept
@@ -142,6 +144,13 @@ namespace seqan3 {
             return ((!data->sequence) ? true : data->sequence->empty()) && data->gap_sums.size() == 0;
         }
 
+        template<class Tuple>
+        decltype(auto) sum_components(Tuple const& tuple) {
+            auto sum_them = [](auto const&... e)->decltype(auto) {
+                return (e+...);
+            };
+            return std::apply( sum_them, tuple );
+        };
         // position is virtual, gaps block-wise accumulated
         bool insert_gap(size_type const pos, size_type const size=1)
         {
@@ -153,39 +162,45 @@ namespace seqan3 {
             size_type block_id = std::get<0>(location);
             size_type gap_id = std::get<1>(location);
             size_type gap_acc = std::get<2>(location);
+            int i = 0;
+            std::cout << i++ << std::endl;
+            std::cout << "block_id = " << block_id << ", gap_id = " << gap_id << std::endl;
+            gap_block_type block = data->gap_block_list[block_id];
 
-            gap_block_type block = data->gap_block_list[std::get<0>(location)];
-            // case 1: insert new gap
-            // case 1 a) is empty or preceeding gap does not overlap with insertion pos
-            if (!block.size() || gap_id == block.size() && block[gap_id-1].first + block[gap_id-1].second + gap_acc < pos)
-                block.push_back(gap_t{pos, size});
-            // case 1 b) not empty, lower_bound points to upstream gap
-            // and check for preceeding gap that may overlap with insertion position
-            else if (gap_id != block.size() && block[gap_id].first > pos &&
-                (!gap_id || block[gap_id-1].first + block[gap_id-1].second + gap_acc < pos))
+            // case: gap outer extension with gap from preceeding block
+            if (block_id > 0 && data->gap_block_list[block_id-1].back().first + data->gap_block_list[block_id-1].back().second + gap_acc == pos)
             {
-                data->gap_block_list[block_id].insert(data->gap_block_list[block_id].begin() + gap_id, gap_t{pos,size});
+                --block_id;
+                data->gap_block_list[block_id-1][data->gap_block_list[block_id-1].size()-1].second += size;
             }
-            // case 2: extend existing gap
-            // case 2 a) lower_bound coincides with pos
-            else if (block[gap_id].first + gap_acc == pos)
+            // case: gap outer extension with preceeding gap from same block
+            else if (gap_id > 0 && data->gap_block_list[block_id][gap_id-1].first + data->gap_block_list[block_id][gap_id-1].second + gap_acc == pos)
+                data->gap_block_list[block_id-1][data->gap_block_list[block_id-1].size()-1].second += size;
+
+            // case: insert new gap
+            std::cout << i++ << std::endl;
+            if (!block.size() || gap_id == block.size() || gap_acc + block[gap_id] > pos)
             {
+                // a) current block is empty or there is no coinciding or preceeding gap
+                if (!block.size() || gap_id == block.size())
+                    block.push_back(gap_t{pos, size});
+                // b) there is a preceeding gap, insert before
+                else
+                    data->gap_block_list.insert(data->gap_block_list[block_id].begin() + gap_id, gap_t{pos, size});
+            }
+            // case: gap inner extension
+            else if ((gap_acc + block[gap_id].first) >= pos && (gap_acc + block[gap_id].first + block[gap_id].second) <= pos)
                 data->gap_block_list[block_id][gap_id].second += size;
-            }
-            // case 2 b) preceeding gap gets extended
-            else if (!gap_id && block[gap_id-1].first + block[gap_id-1].second + gap_acc >= pos)
-            {
-                data->gap_block_list[block_id][gap_id-1].second += size;
-            }
 
             else std::cout << "ERROR: should not reach this\n";
 
-            // c) update gap_sum for this block
+            // update gap_sum for this block
             data->gap_sums[block_id] += size;
             return true;
         }
 
         // erase gaps from range aligned_seq[pos1;pos2-1]
+        // TODO: rework with changed locate logic
         bool erase_gap(size_type const pos1, size_type const pos2)
         {
             assert(pos2 <= this->size());
@@ -224,6 +239,7 @@ namespace seqan3 {
             return true;
         }
 
+        // TODO: rework with changed locate logic
         constexpr reference operator[](size_type const idx) // const noexcept(noexcept((*host)[pos+n]))
         {
             std::cout << "operator[] with idx = " << idx << std::endl;
@@ -272,21 +288,28 @@ namespace seqan3 {
             return lhs.first < rhs.first;
         }
 
+    public:
         // given a virtual position compute lower bounding gap and return block and gap indices.
-        // lower bound is the first element in the gap block that is not less than
-        // (i.e. greater or equal to) pos, or end of block if no such element is found
-        // return (block_id, gap_id, gap_acc)
+        // behaviour is similar to std::lower_bound, except that when pos is inside a
+        // a gap, it returns the earlier starting gap anchor location.
+        // If pos does not correspond to an inner gap, the behaviour is identical to
+        // std::lower bound and location will be the gap that is not less than
+        // (i.e. greater or equal to) pos, or end of block if no such element is found.
+        // In addition to the block_id and gap_id the accumulated gap lengths are returned
+        // for avoiding repeated computation.
+        // location = (block_id, gap_id, gap_acc)
         void locate_gap(size_type const pos, location_type &location)
         {
             size_type block_id = 0, gap_id = 0, gap_acc = 0;
+            gap_t last_gap = (!data->gap_block_list[0].size()) ?  gap_t{0, 0} : data->gap_block_list[0].back();
             // 1. locate block and accumulate gaps
             auto it = data->gap_sums.begin();
-            while (it != data->gap_sums.end() && (gap_acc + (*it) + block_id*block_size) < pos)
+            while (it != data->gap_sums.end() && (gap_acc + last_gap.first + last_gap.second - 1) < pos)
             {
-                gap_acc += *it;
+                gap_acc += *it++;
                 ++block_id;
+                last_gap = (!data->gap_block_list[block_id].size()) ? gap_t{0, 0} : data->gap_block_list[block_id].back();
             }
-//            gap_acc = std::sum(data->gap_sums.begin(), data->gap_sums.begin() + block_id - 1, 0);
 
             // accumulate gaps before lower bound within designated block
             auto it2 = std::lower_bound(data->gap_block_list[block_id].begin(), data->gap_block_list[block_id].end(), gap_t{pos-gap_acc, 0},
@@ -301,15 +324,15 @@ namespace seqan3 {
             std::get<1>(location) = gap_id;
             std::get<2>(location) = gap_acc;
         }
-
+private:
         struct data_t
         {
             inner_type * sequence{};
             // block-wise accumulation of gap lengths, size doesn't change after sequence assignment
             std::vector<size_t> gap_sums{};
             // nested vector to store gaps by block, i.e. gap_block_list[block id] = gap_block_list
+            // an eventually tailing gap will be stored in the last block for having consistent gap read behaviour in all blocks
             gap_block_list_t gap_block_list{};
-
         };
         std::shared_ptr<data_t> data;
     };
