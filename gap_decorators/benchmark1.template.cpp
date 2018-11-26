@@ -17,6 +17,7 @@
 #include <seqan3/alphabet/nucleotide/all.hpp>
 #include <seqan3/range/container/bitcompressed_vector.hpp>
 
+#include "../anchor_blocks.hpp"
 #include "../anchor_list.hpp"
 #include "../anchor_set.hpp"
 #include "../anchor_set2.hpp"
@@ -45,7 +46,7 @@ void benchmark1(int csv_flag)  //std::string const & binary_name)
     using time_type = long double;
 
     // setup
-    if (LOG_LEVEL_<[LOG_LEVEL]>) std::cout << "set up seq_length ...\n";
+    if (LOG_LEVEL_<[LOG_LEVEL]>) std::cout << "  ...\n";
     std::vector<size_type> seq_lengths;
     for (short unsigned int p = POW1-1; p < POW2; ++p) seq_lengths.push_back(1 << (p+1));
     // container for gap-free sequence either std::vector<alphabet_type> or seqan3::bitcompressed_vector<alphabet_type>
@@ -78,6 +79,7 @@ void benchmark1(int csv_flag)  //std::string const & binary_name)
 
             //fill vector with A
             if (LOG_LEVEL_<[LOG_LEVEL]>) std::cout << "start filling sequence ...\n";
+
             std::fill(seq.begin(), seq.end(), <[letter_A]>);
             if (LOG_LEVEL_<[LOG_LEVEL]>) std::cout << "done filling.\n";
 
@@ -98,11 +100,13 @@ void benchmark1(int csv_flag)  //std::string const & binary_name)
             {
                 for (size_type i = 0; i < gaps.size(); ++i)
                 {
+
                     if (LOG_LEVEL_<[LOG_LEVEL]>) std::cout << "gap_len = " << gaps[i] << std::endl;
-                    if (LOG_LEVEL_<[LOG_LEVEL]>) std::cout << "insert gap (" << i << ", " << gaps[i] << ") into structure ...\n";
-                    gap_decorator.insert_gap(i + gap_acc, gaps[i]);
+                    if (LOG_LEVEL_<[LOG_LEVEL]>) std::cout << "insert gap (" << i + gap_acc << ", " << gaps[i] << ") into structure ...\n";
+                    if (gaps[i])
+                        gap_decorator.insert_gap(i + gap_acc, gaps[i]);
                     gap_acc += gaps[i];
-                    if (i + gap_acc >= seq_len) break;
+                    if (gap_decorator.size() >= (seq_len << 1)) break;
                 }
                 if (LOG_LEVEL_<[LOG_LEVEL]>) std::cout << "num gaps inserted: " << gap_acc << std::endl;
                 // shorten container for not exceeding target sequence length
