@@ -247,6 +247,7 @@ namespace seqan3 {
                 std::cout << "\n";
             }
             // there is no gap
+
             assert(data->gap_block_list[block_id].size() != gap_id);
             //-AAAAACGTTGCA----
             //01234567890123456
@@ -320,9 +321,13 @@ namespace seqan3 {
         // helper for benchmark only
         void resize(size_t new_size)
         {
+            if (LOG_LEVEL_AB)
+            {
+                std::cout << "enter resize with new_size = " << new_size << ", current size = " << this->size() << std::endl;
+            }
             while (this->size() > new_size)
             {
-                if ((value_type)(*this)[new_size-1] == gap::GAP)
+                if ((value_type)(*this)[new_size] == gap::GAP)
                     erase_gap(new_size, new_size+1);
                 else
                     this->data->sequence->resize(this->data->sequence->size()-1);
