@@ -134,7 +134,7 @@ namespace seqan3 {
                 return data->sequence->size();
             }
             size_type gap_acc = std::accumulate(data->gap_sums.begin(), data->gap_sums.end(), 0, std::plus<size_type>());
-            //std::cout << "current size = " << data->sequence->size() + gap_acc << std::endl;
+            //std::cout << "current size = data->sequence->size() + gap_acc " << data->sequence->size()<< " + " << gap_acc<< std::endl;
             return data->sequence->size() + gap_acc;
         }
 
@@ -179,10 +179,11 @@ namespace seqan3 {
                 data->gap_block_list[block_id-1][data->gap_block_list[block_id-1].size()-1].second += size;
             }*/
             // case: gap outer extension with preceeding gap from same block
-            if (gap_id > 0 && data->gap_block_list[block_id][gap_id-1].first + data->gap_block_list[block_id][gap_id-1].second + gap_acc == pos)
+            // returned gap accumulator contains gap length of preceeding gap and does not need to be added to test for
+            if (gap_id > 0 && data->gap_block_list[block_id][gap_id-1].first + gap_acc == pos)
             {
                 if (LOG_LEVEL_AB) std::cout << "\tcase: gap outer extension with preceeding gap from same block\n";
-                    data->gap_block_list[block_id-1][data->gap_block_list[block_id-1].size()-1].second += size;
+                data->gap_block_list[block_id][gap_id-1].second += size;
             }
             // case: insert new gap
             //std::cout << i++ << std::endl;
@@ -221,10 +222,9 @@ namespace seqan3 {
 
             if (LOG_LEVEL_AB)
             {
-                std::cout << "updated gap_sums: ";
+                std::cout << "updated gap_sums: [";
                 for (auto gap_sum : data->gap_sums) std::cout << gap_sum << ", ";
-                std::cout << std::endl;
-                std::cout << "updated gap_sums[" << block_id << "] = " << data->gap_sums[block_id] << std::endl;
+                std::cout << "]" << std::endl;
             }
             return true;
         }
@@ -282,7 +282,7 @@ namespace seqan3 {
         // TODO: rework with changed locate logic
         constexpr reference operator[](size_type const idx) // const noexcept(noexcept((*host)[pos+n]))
         {
-            if (LOG_LEVEL_AB) std::cout << "operator[] with idx = " << idx << std::endl;
+            //if (LOG_LEVEL_AB) std::cout << "operator[] with idx = " << idx << std::endl;
             assert(idx < this->size());
             // identify gap block
             // TODO: wasn't there a new Pyton-like feature allowing immediate unpacking?
@@ -291,7 +291,7 @@ namespace seqan3 {
             size_type block_id = std::get<0>(location);
             size_type gap_id = std::get<1>(location);
             size_type gap_acc = std::get<2>(location);
-            if (LOG_LEVEL_AB) std::cout << "location[" << idx << "] = (" << std::get<0>(location) << ", " << std::get<1>(location) << ", " << std::get<2>(location) << ")\n";
+            //if (LOG_LEVEL_AB) std::cout << "location[" << idx << "] = (" << std::get<0>(location) << ", " << std::get<1>(location) << ", " << std::get<2>(location) << ")\n";
             /*std::cout << "!data->gap_block_list[block_id].size(): " << (!data->gap_block_list[block_id].size()) << std::endl;
             if ((data->gap_block_list[block_id].size())){
                 std::cout << "gap_id ==  data->gap_block_list[block_id].size(): " << (gap_id ==  data->gap_block_list[block_id].size()) << std::endl;
@@ -303,18 +303,19 @@ namespace seqan3 {
             if (!data->gap_block_list[block_id].size() || gap_id ==  data->gap_block_list[block_id].size() ||
                 data->gap_block_list[block_id][gap_id].first + gap_acc > idx)
             {
-                if (LOG_LEVEL_AB) std::cout << "case letter, accessed at idx-gap_acc, i.e. " << idx << " - " << gap_acc << " = " << (idx - gap_acc) << std::endl;
+                //if (LOG_LEVEL_AB) std::cout << "case letter, accessed at idx-gap_acc, i.e. " << idx << " - " << gap_acc << " = " << (idx - gap_acc) << ", current sequence.length = " << data->sequence->size() << std::endl;
+
                 return (*data->sequence)[idx - gap_acc];
             }
-            else if (data->gap_block_list[block_id][gap_id].first + gap_acc <= idx &&
-                data->gap_block_list[block_id][gap_id].first + data->gap_block_list[block_id][gap_id].second + gap_acc > idx)
+            else //if (data->gap_block_list[block_id][gap_id].first + gap_acc <= idx &&
+                //data->gap_block_list[block_id][gap_id].first + data->gap_block_list[block_id][gap_id].second + gap_acc > idx)
             {
-                if (LOG_LEVEL_AB) std::cout << "case gap\n";
+                //if (LOG_LEVEL_AB) std::cout << "case gap\n";
                 return gap::GAP;
             }
 
-            else
-                std::cout << "ERROR: should reach this case\n";
+            //else
+            //    std::cout << "ERROR: should not reach this case\n";
             return gap::GAP;
         }
 
@@ -323,17 +324,61 @@ namespace seqan3 {
         {
             if (LOG_LEVEL_AB)
             {
-                std::cout << "enter resize with new_size = " << new_size << ", current size = " << this->size() << std::endl;
+                //std::cout << "enter resize with new_size = " << new_size << ", current size = " << this->size() << std::endl;
             }
             while (this->size() > new_size)
             {
-                if ((value_type)(*this)[new_size] == gap::GAP)
+                location_type location;
+                locate_gap(new_size, location);
+                size_type block_id = std::get<0>(location);
+                size_type gap_id = std::get<1>(location);
+                //size_type gap_acc = std::get<2>(location); // (value_type)(*this)[i]
+
+                value_type v = (value_type)(*this)[new_size];
+                //std::cout << "resize: delete [" << new_size << "] = " << v << std::endl;
+                if (v == gap::GAP)
+                {
+                //    std::cout << "resize: erase_gap at " << new_size << std::endl;
+
                     erase_gap(new_size, new_size+1);
+                }
                 else
+                {
+                //    std::cout << "resize: case resize underlying sequence from " << this->data->sequence->size() << " to " <<  this->data->sequence->size() -1<< std::endl;
                     this->data->sequence->resize(this->data->sequence->size()-1);
+                    // shift left all subsequent gaps
+                    while (block_id < data->gap_block_list.size())
+                    {
+                        while (gap_id < data->gap_block_list[block_id].size())
+                        {
+
+                            data->gap_block_list[block_id][gap_id].first -= 1;
+                            // move to preceeding block
+                            if (!gap_id && data->gap_block_list[block_id][gap_id].first % block_size == block_size-1)
+                            {
+                                size_type gap_len = data->gap_block_list[block_id][gap_id].second;
+                                data->gap_block_list[block_id-1].push_back(gap_t(data->gap_block_list[block_id][gap_id].first, gap_len));
+                                data->gap_block_list[block_id].erase(data->gap_block_list[block_id].begin());
+                                data->gap_sums[block_id] -= gap_len;
+                                data->gap_sums[block_id+1] += gap_len;
+
+                            }
+                            ++gap_id;
+                        }
+                        gap_id = 0;
+                        ++block_id;
+                    }
+                }
+                if (LOG_LEVEL_AB)
+                {
+                    std::cout << "resized sequence: has " << data->sequence->size() << " letters and " << std::accumulate(data->gap_sums.begin(), data->gap_sums.end(), 0)<< " gaps \n";
+                    for (size_type i = 0; i < this->size(); ++i) std::cout << (value_type)(*this)[i];
+                    std::cout << std::endl;
+                }
             }
             // remove supernumery tailing blocks
-            size_type num_blocks = std::max<size_type>(1, data->sequence->size()/block_size + 1);
+            size_type num_blocks = std::max<size_type>(1, new_size/block_size + 1);
+            if (LOG_LEVEL_AB) std::cout << "number of blocks: " << num_blocks << std::endl;
             data->gap_block_list.resize(num_blocks);
             data->gap_sums.resize(num_blocks);
         }
@@ -376,11 +421,10 @@ namespace seqan3 {
             if (gap_acc) gap_acc -= data->gap_sums[block_id];
             if (LOG_LEVEL_AB)
             {
-                std::cout << "enter lower_bound with pos -gap_acc, i.e. " << pos << " - " << gap_acc << " = " << pos-gap_acc << std::endl;
-                //std::cout << "\tenter lower_bound with gap = (" << pos-gap_acc << ", 0)\n";
-                std::cout << "data->gap_block_list[block_id].size() = " << data->gap_block_list[block_id].size() << std::endl;
-                for (size_type i = 0; i < data->gap_block_list[block_id].size(); ++i)
-                    std::cout << "block contains: (" << data->gap_block_list[block_id][i].first << ", " << data->gap_block_list[block_id][i].second << ")\n";
+                //std::cout << "enter lower_bound with pos -gap_acc, i.e. " << pos << " - " << gap_acc << " = " << pos-gap_acc << std::endl;
+                //std::cout << "data->gap_block_list[block_id].size() = " << data->gap_block_list[block_id].size() << std::endl;
+                //for (size_type i = 0; i < data->gap_block_list[block_id].size(); ++i)
+                //    std::cout << "block contains: (" << data->gap_block_list[block_id][i].first << ", " << data->gap_block_list[block_id][i].second << ")\n";
             }
             // accumulate gaps before lower bound within designated block
             // either do linear search from front to last or binary search with lower_bound, but the need to compute block-local gap_sums
@@ -394,8 +438,8 @@ namespace seqan3 {
                     ++it2;
                 }
             }
-            if (LOG_LEVEL_AB) std::cout << "it2 - begin() = " << (it2 - data->gap_block_list[block_id].begin()) << std::endl;
-
+            //if (LOG_LEVEL_AB) std::cout << "it2 - begin() = " << (it2 - data->gap_block_list[block_id].begin()) << std::endl;
+            //std::cout << "it2 == end() ? " << (it2 == data->gap_block_list[block_id].end()) << std::endl;
             /*
             auto it2 = std::lower_bound(data->gap_block_list[block_id].begin(), data->gap_block_list[block_id].end(), gap_t{pos-gap_acc, 0},
                 [] (const auto& lhs, const auto& rhs) -> bool {
@@ -403,7 +447,8 @@ namespace seqan3 {
                     return lhs.first + lhs.second - 1 < rhs.first;  // element < value
                 });
                 */
-            if (LOG_LEVEL_AB) std::cout << "\tit2 for gap_list points to end(): " << (it2 - data->gap_block_list[block_id].end() == data->gap_block_list[block_id].size()) << std::endl;
+
+            //if (LOG_LEVEL_AB) std::cout << "\tit2 for gap_list points to end(): " << (it2 - data->gap_block_list[block_id].end() == data->gap_block_list[block_id].size()) << std::endl;
             gap_acc = std::accumulate(data->gap_block_list[block_id].begin(), it2,
                 gap_acc, [](size_type acc, gap_t gap){ return acc += gap.second;});
             gap_id = static_cast<size_type>(it2 - data->gap_block_list[block_id].begin());
