@@ -35,7 +35,6 @@ struct gap_compare {
 template <typename inner_type>
 struct anchor_set2
 {
-
 public:
 
     using alphabet_type = typename ranges::v3::value_type_t<inner_type>;
@@ -43,6 +42,7 @@ public:
     using reference = value_type;
     using size_type = typename ranges::v3::size_type_t<inner_type>;
     using gap_t = typename std::pair<size_t, size_t>;
+    using anchor_set_iterator = typename std::set<gap_t, gap_compare<gap_t>>::iterator;
 
     constexpr anchor_set2()
     {
@@ -106,8 +106,8 @@ public:
         if (LOG_LEVEL_AS2) std::cout << "called insert with pos = " << pos << ", size = " << size << std::endl;
         typename std::set<gap_t, gap_compare<gap_t>>::iterator it = data->anchors.begin();
         //auto it = data->anchors.begin();
-        // case 1: extend previous/surrounding gap
-        if ((pos < this->size()) && (((value_type)(*this)[pos] == gap::GAP) or (pos > 0 && (value_type)(*this)[pos-1] == gap::GAP)))
+        // case 1: extend previous/surrounding gap, 'or' instead of '||' never threw an error!?
+        if ((pos < this->size()) && (((value_type)(*this)[pos] == gap::GAP) || (pos > 0 && (value_type)(*this)[pos-1] == gap::GAP)))
         {
             if (LOG_LEVEL_AS2) std::cout << "case: gap extension\n" << std::endl;
             it = data->anchors.lower_bound(gap_t{pos, _});
@@ -213,12 +213,28 @@ public:
         data->sequence = sequence;
     }
 
-    constexpr reference operator[](size_type const idx) const
+    constexpr reference operator[](size_type const i) const
     {
-        assert(idx < size());
+        assert(i < size());
         // case 1: no gaps
-        if (!data->anchors.size()) return value_type((*data->sequence)[idx]);
+        if (!data->anchors.size()) return value_type((*data->sequence)[i]);
         // case 2: gaps
+        anchor_set_iterator it = data->anchors.upper_bound(gap_t{i, _});
+
+        if (it == data->anchors.begin())
+            return value_type((*(data->sequence))[i]); // since no gaps happen before i
+
+        it = std::prev(it); // here you can be sure that (*it).first <= i by defnition of upper_bound. No need to test.
+
+        size_type gap_len{(*it).second};
+        if (it != data->anchors.begin())
+            gap_len -= (*(std::prev(it, 1))).second;
+
+        if (i < (*it).first + gap_len)
+            return gap::GAP;
+        else
+            return value_type((*(data->sequence))[i - (*it).second]);
+        /*
         typename std::set<gap_t, gap_compare<gap_t>>::iterator it = data->anchors.lower_bound(gap_t{idx, _});
         if (data->anchors.size() && it == data->anchors.end())
             it = std::prev(it);
@@ -235,6 +251,7 @@ public:
                 return gap::GAP;
         }
         return value_type((*data->sequence)[idx - acc]);
+        */
     }
 
 private:
