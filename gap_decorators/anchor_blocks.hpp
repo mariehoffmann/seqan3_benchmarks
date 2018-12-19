@@ -20,7 +20,7 @@
 #include <sdsl/sd_vector.hpp>
 #include <sdsl/util.hpp>
 
-#define LOG_LEVEL_AB 0
+#define LOG_LEVEL_AB 1
 
 namespace seqan3 {
 
@@ -159,6 +159,13 @@ namespace seqan3 {
         bool insert_gap(size_type const pos, size_type const size=1)
         {
             assert(pos <= this->size());
+            size_type num_gaps = 0;
+            /*for (size_type i = 0; i < data->gap_block_list.size(); ++i)
+            {
+                for (size_type j = 0; j < data->gap_block_list[i]; ++j)
+                    ++num_gaps;
+            }*/
+            std::cout << "DEBUG: number of gaps in structure: " << num_gaps << std::endl;
             if (LOG_LEVEL_AB) std::cout << "enter insert_gap with (pos, size) = (" << pos << ", " << size << ")" << std::endl;
             // locate lower bounding gap
             location_type location{0, 0, 0};
@@ -169,15 +176,7 @@ namespace seqan3 {
             int i = 0;
             if (LOG_LEVEL_AB) std::cout << i++ << std::endl;
             if (LOG_LEVEL_AB) std::cout << "block_id = " << block_id << ", gap_id = " << gap_id << ", gap_acc = " << gap_acc << std::endl;
-            //gap_block_type block = data->gap_block_list[block_id];
 
-            // case: gap outer extension with gap from preceeding block
-            /*if (!block_id && !data->gap_block_list[block_id-1].size() && data->gap_block_list[block_id-1].back().first + data->gap_block_list[block_id-1].back().second + gap_acc == pos)
-            {
-                std::cout << "\tcase: gap outer extension with gap from preceeding block\n";
-                --block_id;
-                data->gap_block_list[block_id-1][data->gap_block_list[block_id-1].size()-1].second += size;
-            }*/
             // case: gap outer extension with preceeding gap from same block
             // returned gap accumulator contains gap length of preceeding gap and does not need to be added to test for
             if (gap_id > 0 && data->gap_block_list[block_id][gap_id-1].first + gap_acc == pos)
@@ -186,7 +185,6 @@ namespace seqan3 {
                 data->gap_block_list[block_id][gap_id-1].second += size;
             }
             // case: insert new gap
-            //std::cout << i++ << std::endl;
             else if (!data->gap_block_list[block_id].size() ||
                 gap_id == data->gap_block_list[block_id].size() ||
                 gap_acc + data->gap_block_list[block_id][gap_id].first > pos)
@@ -207,13 +205,14 @@ namespace seqan3 {
 
             }
             // case: gap inner extension
-            else if ((gap_acc + data->gap_block_list[block_id][gap_id].first) >= pos
-                && (gap_acc + data->gap_block_list[block_id][gap_id].first + data->gap_block_list[block_id][gap_id].second) <= pos)
+            else //if ((gap_acc + data->gap_block_list[block_id][gap_id].first) >= pos
+                //&& (gap_acc + data->gap_block_list[block_id][gap_id].first + data->gap_block_list[block_id][gap_id].second) <= pos)
             {
                 if (LOG_LEVEL_AB) std::cout << "\tcase: gap inner extension\n";
                 data->gap_block_list[block_id][gap_id].second += size;
             }
-            else std::cout << "ERROR: should not reach this\n";
+            // TODO: this was reached
+            //else std::cout << "ERROR: should not reach this\n";
 
             // update gap_sum for this block
             if (LOG_LEVEL_AB) std::cout << "before update of gap_sum[" << block_id << "] = " << data->gap_sums[block_id] << " with " << size << std::endl;
@@ -256,7 +255,7 @@ namespace seqan3 {
             size_type gap_vpos_end = gap_vpos_start + data->gap_block_list[block_id][gap_id].second;
 
             // gap addressed by pos1 is shorter than the range to be erased
-            assert(gap_vpos_end >= pos2);
+            //assert(gap_vpos_end >= pos2);
 
             // case:  erase complete gap
             if (pos1 == gap_vpos_start && pos2 == gap_vpos_end)

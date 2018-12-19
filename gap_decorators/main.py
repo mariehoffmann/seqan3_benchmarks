@@ -7,7 +7,7 @@
     installation directories.
     Exemplary call:
 
-            python main.py 1 $HOME_DIR $SEQAN3_DIR $RANGEV3_DIR $SDSL_DIR 32 2 8
+            python3 main.py 1 $HOME_DIR $SEQAN3_DIR $RANGEV3_DIR $SDSL_DIR 10 3 12
 
     to produce, run, and evaluate files for benchmark1 with sequence length
     ranges in [2^2, 2^3, ..., 2^8] and 32 experiment repetitions.
@@ -23,6 +23,7 @@ import random
 import re
 from shutil import copyfile
 import sys
+import timeit
 
 # binaries produce their own csv files with runtime results
 CSV_FLAG = 0
@@ -35,25 +36,36 @@ dirs = namedtuple("dirs", "home seqan3 rangev3 sdsl")
 param = namedtuple("param", "REPEAT POW1 POW2")
 
 # seqan3 data types to test, dna4 = seqan3::dna4, dna4_compressed = seqan3::bitcompressed_vector<dna4>
-base_types = ['dna4', 'dna4compressed', 'dna15']  # 'dna15', 'dna4',
+base_types = ['dna4']  #, 'dna4compressed', 'dna15']  # 'dna15', 'dna4',
 
 # local directory to place generated cpp files
 src_dir = "./src"
+if os.path.isdir(src_dir) is False:
+    os.mkdir(src_dir)
 
 # local directory to collect time and heap measurements
 result_dir = "./results"
+#result_dir = "./results_AB"
+if os.path.isdir(result_dir) is False:
+    os.mkdir(result_dir)
 
 # local directory to collect terminal outputs of single runs
 log_dir = "./log"
+if os.path.isdir(log_dir) is False:
+    os.mkdir(log_dir)
 
 # compilation string for generated cpp source files
-compile_str = "g++ -std=c++17 -Wall -fconcepts -I<seqan3_dir>/include -I<rangev3_dir>/include -I<sdsl_dir>/include {0}/<cpp_file> -o {0}/<benchmark>".format(src_dir)
+compile_str = "g++-8 -std=c++17 -Wall -fconcepts -I<seqan3_dir>/include -I<rangev3_dir>/include -I<sdsl_dir>/include {0}/<cpp_file> -o {0}/<benchmark>".format(src_dir)
+if os.uname()[0] == 'Darwin':
+    compile_str = "g++ -std=c++17 -Wall -fconcepts -I<seqan3_dir>/include -I<rangev3_dir>/include -I<sdsl_dir>/include {0}/<cpp_file> -o {0}/<benchmark>".format(src_dir)
 
 #: heap profiler with positional arguments 0 for output file name, and 1 for binary name
 valgrind_cmd = "valgrind --tool=massif --massif-out-file={0} {1}"
 
 # measure heap consumption (MacOS, FreeBSD), 0: binary, 1: terminal output, 2: time output for heap profiling
-space_cmd = "(/usr/bin/time -l {0} 0) > {1} 2> {2}"
+space_cmd = "(time {0} 0) > {1} 2> {2}"
+if os.uname()[0] == 'Darwin':
+    space_cmd = "(/usr/bin/time -l {0} 0) > {1} 2> {2}"
 
 # regex for extracting maximum resident heap size from 'time' command above
 size_rx = re.compile(".*?\s*(\d+)\s+maximum resident set size.*?")
@@ -62,13 +74,20 @@ size_rx = re.compile(".*?\s*(\d+)\s+maximum resident set size.*?")
 time_cmd = "{0} 1"
 
 # benchmark names used for binary and result generation
-benchmarks = [["benchmark" + str(i+1) + meth for meth in ["_GS", "_GVsd", "_GVbit", "_AL", "_AS"]] for i in range(3)]
+benchmarks = [["benchmark" + str(i+1) + meth for meth in ["_GS", "_GVsd", "_GVbit", "_AL", "_AS2", "_AB"]] for i in range(3)]
+#benchmarks = [["benchmark" + str(i+1) + meth for meth in ["_GS", "_AL", "_AS2", "_AB"]] for i in range(3)]
 
 # the different approaches to represent gaps, see gapped_sequence.cpp, etc.
-gap_decorators = ['gapped_sequence', 'gap_vector_sd', 'gap_vector_bit', 'anchor_list', 'anchor_set']
+gap_decorators = ['gapped_sequence', 'gap_vector_sd', 'gap_vector_bit', 'anchor_list', 'anchor_set2', 'anchor_blocks']
+#gap_decorators = ['gapped_sequence', 'anchor_list', 'anchor_set2', 'anchor_blocks']
+#gap_decorators = ['anchor_blocks_8', 'anchor_blocks_16', 'anchor_blocks_32', 'anchor_blocks_64', 'anchor_blocks_128', 'anchor_blocks_256']
+
+# black list
+ignore_binary_rx = re.compile('XX')  #'.+?GV(sd|bit)_dna.+?_GAPFLAG_\d_(RUN|HEAP).+?')
 
 # info strings for the different approaches
-info = ["Gapped Sequence container<gapped>", "Gap Vector sdsl::sd_vector", "Gap Vector sdsl::bit_vector", "Anchor List", "Anchor Set"]
+info = ["Gapped Sequence container<gapped>", "Gap Vector sdsl::sd_vector", "Gap Vector sdsl::bit_vector", "Anchor List", "Anchor Set2", "Anchor Block"]
+#info = ["Gapped Sequence container<gapped>", "Anchor List", "Anchor Set2", "Anchor Block"]
 
 # sed command for in-place text substitutions
 sed = "sed -i.bak -e 's|<\[{}\]>|{}|g' -- ./src/{}"
@@ -192,61 +211,73 @@ def run(binaries, id, return_dict):
     # 4: max_resident_set_sizes
     # 5: return code
     rc = [[] for _ in range(6)]
-    print("DEBUG: run with {} binaries".format(len(binaries)))
+    #print("DEBUG: run with {} binaries".format(len(binaries)))
     for i, binary in enumerate(binaries):
         rc[0].append(binary)
         path_to_binary = os.path.join(src_dir, binary)
         if os.path.isfile(path_to_binary) is False:
             print("ERROR: binary '" + binary + "' not found.")
             return
-        if i == 0:  # case: profile runtimes
-            path_to_time_out = os.path.join(result_dir, binary + ".csv")
-            # launch in case no runtime result file exists
-            if os.path.isfile(path_to_time_out) == False and continue_flag == True:
-                cmd = time_cmd.format(str(path_to_binary))
-                # high byte: binary exit code, low byte: signal num
-                code = os.system(cmd) >> 8
-                rc[5] = code
-            with open(path_to_time_out, 'r') as f:
-                for line in f.readlines()[1:]:
-                    line = line.strip().split(',')
-                    rc[1].append(int(line[0]))
-                    rc[2].append(float(line[1]))
-                    rc[3].append(float(line[2]))
-            print(rc[0][0] + ": \t" + "\t".join([str(rc[1]), str(rc[2]) + "\u00B1" + str(rc[3]), str(rc[4]), str(rc[5])]))
 
-        else:   # case: profile heap
-            # space_cmd = "(/usr/bin/time -l {0} 0) > {1} 2> {2}"
-            # average over 5 runs
-            runs = 5
-            path_to_space_log = os.path.join(log_dir, binary + ".space.log")
-            path_to_space_out = os.path.join(result_dir, binary + ".space.out")
-            cmd = space_cmd.format(str(path_to_binary), str(path_to_space_log), str(path_to_space_out))
-            sum_max_rss = 0
-            path_to_space_out_isvalid = True if os.path.isfile(path_to_space_out) == True else False
-            if path_to_space_out_isvalid == True:
-                with open(path_to_space_out, 'r') as f:
-                    line = ''.join(f.readlines()[1:3])
-                    mobj = size_rx.match(line)
-                    if mobj is None:
-                        path_to_space_out_isvalid = False
+        if ignore_binary_rx.match(binary) is not None:
+            print("STATUS: ignore {}".format(binary))
+            rc[1].append(-1)
+            rc[2].append(-1)
+            rc[3].append(-1)
+            rc[4].append(-1)
+            rc[5] = -1
 
-            for _ in range(runs):
-                print("{}: {}".format(path_to_space_out, os.path.isfile(path_to_space_out)))
-                if continue_flag == False or (continue_flag == True and path_to_space_out_isvalid == False):
-                    print("STATUS: {} ...".format(cmd))
-                    code = os.system(cmd)
+        else:
+            if i == 0:  # case: profile runtimes
+                path_to_time_out = os.path.join(result_dir, binary + ".csv")
+                # launch in case no runtime result file exists
+                if continue_flag == False or os.path.isfile(path_to_time_out) == False and continue_flag == True:
+                    print("DEBUG: run2 '{}'".format(binary))
+                    cmd = time_cmd.format(str(path_to_binary))
+                    # high byte: binary exit code, low byte: signal num
+                    code = os.system(cmd) >> 8
+                    rc[5] = code
+                with open(path_to_time_out, 'r') as f:
+                    for line in f.readlines()[1:]:
+                        line = line.strip().split(',')
+                        rc[1].append(int(line[0]))
+                        rc[2].append(float(line[1]))
+                        rc[3].append(float(line[2]))
+                print(rc[0][0] + ": \t" + "\t".join([str(rc[1]), str(rc[2]) + "\u00B1" + str(rc[3]), str(rc[4]), str(rc[5])]))
 
-                # extract 'maximum resident set size'
-                with open(path_to_space_out, 'r') as f:
-                    line = ''.join(f.readlines()[1:3])
-                    mobj = size_rx.match(line)
-                    if mobj is None:
-                        print("ERROR: Could not extract resident size from '" + str(path_to_space_out) + "', re-run")
-                        os.system("cat {}".format(path_to_space_out))
-                        sys.exit(0)
-                    sum_max_rss += int(mobj.group(1))
-            rc[4].append(int(sum_max_rss/runs))
+            else:   # case: profile heap
+                # average over x runs
+                runs = 2
+                path_to_space_log = os.path.join(log_dir, binary + ".space.log")
+                path_to_space_out = os.path.join(result_dir, binary + ".space.out")
+                cmd = space_cmd.format(str(path_to_binary), str(path_to_space_log), str(path_to_space_out))
+                sum_max_rss = 0
+                path_to_space_out_isvalid = True if os.path.isfile(path_to_space_out) == True else False
+                if path_to_space_out_isvalid == True:
+                    with open(path_to_space_out, 'r') as f:
+                        line = ''.join(f.readlines()[1:3])
+                        mobj = size_rx.match(line)
+                        if mobj is None:
+                            path_to_space_out_isvalid = False
+
+                for _ in range(runs):
+                    print("{}: {}".format(path_to_space_out, os.path.isfile(path_to_space_out)))
+                    if continue_flag == False or (continue_flag == True and path_to_space_out_isvalid == False):
+                        print("STATUS: {} ...".format(cmd))
+                        code = os.system(cmd)
+
+                    # extract 'maximum resident set size'
+                    with open(path_to_space_out, 'r') as f:
+                        line = ''.join(f.readlines()[1:3])
+                        mobj = size_rx.match(line)
+                        if mobj is None:
+                            print("ERROR: Could not extract resident size from '" + str(path_to_space_out) + "', re-run")
+                            os.system("cat {}".format(path_to_space_out))
+                            #sys.exit(0)
+                            sum_max_rss = -1
+                        else:
+                            sum_max_rss += int(mobj.group(1))
+                rc[4].append(int(sum_max_rss/runs))
     print("DEBUG: add result_collector with id = " + str(id))
     return_dict[id] = rc
 
@@ -256,15 +287,10 @@ def run_parallel(binary_llist, continue_flag=False):
     manager = mp.Manager()
     return_dict = manager.dict()
     num_workers = mp.cpu_count() - 2
-    print("binary list in run_parallel: ")
-    for binary in binary_llist:
-        print(binary)
-    #sys.exit()
+
     for i, binary_list in enumerate(binary_llist):
         print("STATUS: launch swap " + str(i))
         p = mp.Process(target=run, args=(binary_list, i, return_dict))
-        for binary in binary_list:
-            print("STATUS: start " + binary)
         p.start()
         p.join()
         print("STATUS: swap " + str(i) + " done")
@@ -278,6 +304,8 @@ def generate_src_files(idx, continue_flag=False):
     seed = random.random()
     compile_str_list = []
     print(benchmarks[idx-1])
+    #i = 0
+    #benchmark = benchmarks[idx-1][-1]
     for i, benchmark in enumerate(benchmarks[idx-1]):
         for base_type in base_types:
             for GAP_FLAG in range(2):
@@ -312,6 +340,9 @@ def generate_src_files(idx, continue_flag=False):
 
                 # copy template
                 template_file_new = cpp_file_run
+                print("src_dir = {}".format(src_dir))
+                print("template_file_new = {}".format(template_file_new))
+
                 copyfile(template_file, os.path.join(src_dir, template_file_new))
 
                 # print info string
@@ -353,6 +384,8 @@ def generate_src_files(idx, continue_flag=False):
                 os.system(sed_cmd)
 
                 # substitute gap_decorator
+                print("i = {}".format(i))
+                print(gap_decorators)
                 gap_decorator = gap_decorators[i]
                 sed_cmd = sed.format("gap_decorator", gap_decorator, template_file_new)
                 os.system(sed_cmd)
@@ -415,7 +448,10 @@ def generate_src_files(idx, continue_flag=False):
 if __name__ == "__main__":
     if len(sys.argv) not in [9, 10]:
         print("Usage: python main.py benchmark_idx[1:3] home_dir seqan3_dir rangev3_dir sdsl_dir repeat:int pow1:int pow2:int [continue]")
+        for arg in sys.argv:
+            print(arg)
     else:
+        start = timeit.default_timer()
         dirs.home = sys.argv[2]
         dirs.seqan3 = sys.argv[3]
         dirs.rangev3 = sys.argv[4]
@@ -432,6 +468,7 @@ if __name__ == "__main__":
         print("STATUS: Source file compilation done\nSTATUS: Execute binaries in parallel ...")
         result_dict = run_parallel(binaries, continue_flag)
         print("STATUS: Binary execution done")
-
+        stop = timeit.default_timer()
         print_results(result_dict, "out_{}_{}_{}_{}.csv".format(sys.argv[1], param.REPEAT, param.POW1, param.POW2))
+        print('Time: ' + str(stop - start))
         #cleanup()

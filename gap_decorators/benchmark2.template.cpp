@@ -17,8 +17,10 @@
 #include <seqan3/alphabet/nucleotide/all.hpp>
 #include <seqan3/range/container/bitcompressed_vector.hpp>
 
+#include "../anchor_blocks.hpp"
 #include "../anchor_list.hpp"
 #include "../anchor_set.hpp"
+#include "../anchor_set2.hpp"
 #include "../gap_vector_bit.hpp"
 #include "../gap_vector_sd.hpp"
 #include "../gapped_sequence.hpp"
@@ -69,7 +71,7 @@ void benchmark2(int csv_flag)  //std::string const & binary_name)
         if (LOG_LEVEL_<[LOG_LEVEL]>) std::cout << "reset durations ...\n";
         std::fill(durations.begin(),durations.end(), 0);
         if (LOG_LEVEL_<[LOG_LEVEL]>) std::cout << "done, continue benchmark with seq_len = " << seq_len << std::endl;
-        for (long unsigned int round = 0; round < NUM_OP; ++round)
+        for (long unsigned int round = 0; round < REPEAT; ++round)
         {
             if (LOG_LEVEL_<[LOG_LEVEL]>) std::cout << "start resizing ...\n";
             seq.resize(seq_len);
@@ -95,7 +97,7 @@ void benchmark2(int csv_flag)  //std::string const & binary_name)
                 for (size_type i = gaps.size()-1; i != 0; --i)
                 {
                     if (LOG_LEVEL_<[LOG_LEVEL]>) std::cout << "gap_len = " << gaps[i] << std::endl;
-                    if (gaps[i] > 0 && gap_decorator.size() < seq_len)
+                    if (gaps[i] > 0 && gap_decorator.size()/2 < seq_len)
                     {
                         if (LOG_LEVEL_<[LOG_LEVEL]>) std::cout << "insert gap (" << i << ", " << gaps[i] << ") into structure ...\n";
                         gap_decorator.insert_gap(i, gaps[i]);
@@ -124,7 +126,7 @@ void benchmark2(int csv_flag)  //std::string const & binary_name)
 
             // case gapped sequence: vector<alphabet_type>, else: vector<gapped<alphabet_type>>
             bool aux = true;
-            for (auto j = 0; j < REPEAT; ++j) // for benchmark 2 and 3 reduce REPEAT
+            for (auto j = 0; j < NUM_OP; ++j) // for benchmark 2 and 3 reduce REPEAT
             {
                 // sample read position
                 pos = uni_dis(generator);

@@ -71,7 +71,7 @@ void benchmark1(int csv_flag)  //std::string const & binary_name)
         if (LOG_LEVEL_<[LOG_LEVEL]>) std::cout << "reset durations ...\n";
         std::fill(durations.begin(),durations.end(), 0);
         if (LOG_LEVEL_<[LOG_LEVEL]>) std::cout << "done, continue benchmark with seq_len = " << seq_len << std::endl;
-        for (long unsigned int round = 0; round < NUM_OP; ++round)
+        for (long unsigned int round = 0; round < REPEAT; ++round)
         {
             if (LOG_LEVEL_<[LOG_LEVEL]>) std::cout << "start resizing ...\n";
             seq.resize(seq_len);
@@ -102,7 +102,7 @@ void benchmark1(int csv_flag)  //std::string const & binary_name)
                 {
 
                     if (LOG_LEVEL_<[LOG_LEVEL]>) std::cout << "gap_len = " << gaps[i] << std::endl;
-                    if (LOG_LEVEL_<[LOG_LEVEL]>) std::cout << "insert gap (" << i + gap_acc << ", " << gaps[i] << ") into structure ...\n";
+                    if (gaps[i]) if (LOG_LEVEL_<[LOG_LEVEL]>) std::cout << "insert gap (" << i + gap_acc << ", " << gaps[i] << ") into structure ...\n";
                     if (gaps[i])
                         gap_decorator.insert_gap(i + gap_acc, gaps[i]);
                     gap_acc += gaps[i];
@@ -129,7 +129,7 @@ void benchmark1(int csv_flag)  //std::string const & binary_name)
 
             // case gapped sequence: vector<alphabet_type>, else: vector<gapped<alphabet_type>>
             std::vector<<[gapped_alphabet_type]>> aux(10);
-            for (auto j = 0; j < REPEAT; ++j) // for benchmark 2 and 3 reduce REPEAT
+            for (auto j = 0; j < NUM_OP; ++j) // for benchmark 2 and 3 reduce REPEAT
             {
                 // sample read position
                 pos = uni_dis(generator);
