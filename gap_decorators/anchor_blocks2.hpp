@@ -66,7 +66,14 @@ namespace seqan3 {
                 block_id(block_id), gap_id(gap_id), gap_acc(gap_acc), is_gap(is_gap){};
         };
 
-        constexpr anchor_blocks2() = default;
+        constexpr anchor_blocks2()
+        {
+            size_type num_blocks = 1;
+            gap_sums = gap_sums_type(num_blocks, 0);
+            gap_block_list = gap_block_list_t(num_blocks, gap_block_type(0));
+            //block_list_t b(block_list_t(2, block_t(0)));
+
+        };
 
         constexpr anchor_blocks2(anchor_blocks2 const &) = default;
 
@@ -88,6 +95,7 @@ namespace seqan3 {
                 std::cout << "]" << std::endl;
             }
             gap_block_list = gap_block_list_t(num_blocks, gap_block_type(0));
+
             if (LOG_LEVEL_AB2) std::cout << "gap_block_list.size = " << gap_block_list.size() << std::endl;
         };
 
@@ -178,55 +186,68 @@ namespace seqan3 {
         */
         bool insert_gap(size_type const pos, size_type const size=1)
         {
-            std::cout << "Enter insert_gap with pos = " << pos << std::endl;
+            if (LOG_LEVEL_AB2) std::cout << "Enter insert_gap with pos = " << pos << std::endl;
             assert(pos <= this->size());
             location_type loc{};
-            std::cout << "h1\n";
+            if (LOG_LEVEL_AB2) std::cout << "h1\n";
             // binary search to map pos to its designated block
             locate_gap(pos, loc);
-            std::cout << "h2\n";
+            if (LOG_LEVEL_AB2) std::cout << "h2\n";
             // get gap accumulator of previous block
-            std::cout << "location for pos = " << pos << ": (" << loc.block_id << ", " << loc.gap_id << ", " << loc.gap_acc << ")\n";
+            //if (LOG_LEVEL_AB2)
+            std::cout << "location for pos = " << pos << ": (" << loc.block_id << ", " << loc.gap_id << ", " << loc.gap_acc << ", " << loc.is_gap << ")\n";
             size_type gap_acc_pred = (loc.block_id) ? gap_sums[loc.block_id-1] : 0;
+            std::cout << "num blocks in block_list = " << gap_block_list.size() << std::endl;
             // i) prepend
-            std::cout << "gap_acc_pred = " << gap_acc_pred << std::endl;
             if (loc.gap_acc == gap_acc_pred)
             {
+                //if (LOG_LEVEL_AB2)
                 std::cout << "h2 a1\n";
-                gap_block_list[loc.block_id].insert(gap_block_list[loc.block_id].begin(), gap_t{pos - loc.gap_acc, size});
+                // what cast is happening that vector.begin() results in segmentation fault, but + 0 not?
+                gap_t gap{pos - loc.gap_acc, size};
                 std::cout << "h2 a2\n";
+                std::cout << "gap_block_list[loc.block_id].size = " << gap_block_list[loc.block_id].size() << std::endl;
+
+                gap_block_list[loc.block_id].insert(gap_block_list[loc.block_id].begin() + 0, gap);
+//                gap_block_list[loc.block_id].insert(gap_block_list[loc.block_id].begin(), gap_t{static_cast<size_type>(pos - loc.gap_acc), size});
+                if (LOG_LEVEL_AB2) std::cout << "h2 a3\n";
             }
             // ii) extend
             else if (pos <= gap_block_list[loc.block_id][loc.gap_id].first + loc.gap_acc)
             {
-                std::cout << "h2 b1\n";
+                if (LOG_LEVEL_AB2) std::cout << "h2 b1\n";
                 gap_block_list[loc.block_id][loc.gap_id].second += size;
-                std::cout << "h2 b2\n";
+                if (LOG_LEVEL_AB2) std::cout << "h2 b2\n";
             }
             // iii) insert in the middle or append new gap
             else
             {
+                //if (LOG_LEVEL_AB2)
                 std::cout << "h2 c1\n";
                 gap_block_list[loc.block_id].insert(gap_block_list[loc.block_id].begin() + loc.gap_id, gap_t{static_cast<size_type>(pos - loc.gap_acc), size});
+                //if (LOG_LEVEL_AB2)
                 std::cout << "h2 c2\n";
             }
-            std::cout << "h3\n";
+            if (LOG_LEVEL_AB2) std::cout << "h3\n";
             // update block statistics
             for (size_type i = loc.block_id; i < gap_sums.size();)
                 gap_sums[i++] += size;
 
-            std::cout << "updated gap_sums: [";
-            for (auto gap_sum : gap_sums) std::cout << gap_sum << ", ";
-            std::cout << "]" << std::endl;
-            std::cout << "updated gap_block_list: [";
-            for (auto gap_block : gap_block_list)
+            if (LOG_LEVEL_AB2)
             {
-                std::cout << "[";
-                for (auto gap : gap_block)
-                    std::cout << "(" << gap.first << ", " << gap.second << "), ";
-                std::cout << "]";
+                std::cout << "updated gap_sums: [";
+                for (auto gap_sum : gap_sums) std::cout << gap_sum << ", ";
+                std::cout << "]" << std::endl;
+                std::cout << "updated gap_block_list: [";
+                for (auto gap_block : gap_block_list)
+                {
+                    std::cout << "[";
+                    for (auto gap : gap_block)
+                        std::cout << "(" << gap.first << ", " << gap.second << "), ";
+                    std::cout << "]";
+                }
+                std::cout << "]" << std::endl;
             }
-            std::cout << "]" << std::endl;
             return true;
         }
 
@@ -238,19 +259,27 @@ namespace seqan3 {
             // a) locate gap
             location_type location{0, 0, 0, false};
             locate_gap(pos1, location);
-            std::cout << "location for pos1 = " << pos1 << ": (" << location.block_id << ", " << location.gap_id << ", " << location.gap_acc << ")\n";
+            if (LOG_LEVEL_AB2) std::cout << "location for pos1 = " << pos1 << ": (" << location.block_id << ", " << location.gap_id << ", " << location.gap_acc << ", " << location.is_gap << ")\n";
 
             // location has to point to existing gap
-            assert(location.block_id < gap_block_list.size() && location.gap_id < gap_block_list[location.block_id].size());
+            assert(location.is_gap);
+
+            // gap range to be deleted has to be consecutive
+            assert(pos1 >= gap_block_list[location.block_id][location.gap_id].first + location.gap_acc - gap_block_list[location.block_id][location.gap_id].second);
+            assert(pos2 <= gap_block_list[location.block_id][location.gap_id].first + location.gap_acc);
+
             // to be deleted range has to be inside located gap
             size_type vend = gap_block_list[location.block_id][location.gap_id].first + location.gap_acc + 1;
             size_type vbeg = vend - gap_block_list[location.block_id][location.gap_id].second - 1;
 
-            std::cout << "initial gap list: ";
-            for (gap_t gap : gap_block_list[location.block_id])
-                std::cout << "(" << gap.first << ", " << gap.second << "), ";
+            if (LOG_LEVEL_AB2)
+            {
+                std::cout << "initial gap list: ";
+                for (gap_t gap : gap_block_list[location.block_id])
+                    std::cout << "(" << gap.first << ", " << gap.second << "), ";
 
-            std::cout << "\nvstart = " << vbeg << ", vend = " << vend << std::endl;
+                std::cout << "\nvstart = " << vbeg << ", vend = " << vend << std::endl;
+            }
             assert(pos1 >= vbeg && pos2 <= vend);
 
             // case 1: delete complete gap
@@ -259,18 +288,23 @@ namespace seqan3 {
             // case 2: decrease gap length
             else
                 gap_block_list[location.block_id][location.gap_id].second -= pos2 - pos1;
-            std::cout << "new gap list: ";
-            for (gap_t gap : gap_block_list[location.block_id])
-                std::cout << "(" << gap.first << ", " << gap.second << "), ";
-            std::cout << std::endl;
+            if (LOG_LEVEL_AB2)
+            {
+                std::cout << "new gap list: ";
+                for (gap_t gap : gap_block_list[location.block_id])
+                    std::cout << "(" << gap.first << ", " << gap.second << "), ";
+                std::cout << std::endl;
+            }
             // update block statistics
             for (size_type i = location.block_id; i < gap_sums.size();)
                 gap_sums[i++] -= pos2 - pos1;
-            std::cout << "new gap sums: ";
-            for (auto gap_sum : gap_sums)
-                std::cout << gap_sum << ", ";
-            std::cout << std::endl;
-            exit(0);
+            if (LOG_LEVEL_AB2)
+            {
+                std::cout << "new gap sums: ";
+                for (auto gap_sum : gap_sums)
+                    std::cout << gap_sum << ", ";
+                std::cout << std::endl;
+            }
             return true;
         }
 
@@ -281,7 +315,7 @@ namespace seqan3 {
             // identify gap block
             location_type loc;
             locate_gap(idx, loc);
-            std::cout << "idx = " << idx << ", loc = (" << loc.block_id << ", " << loc.gap_id << ", " << loc.gap_acc << ", " << loc.is_gap << ")\n";
+            if (LOG_LEVEL_AB2) std::cout << "idx = " << idx << ", loc = (" << loc.block_id << ", " << loc.gap_id << ", " << loc.gap_acc << ", " << loc.is_gap << ")\n";
             if (loc.is_gap)
                 return gap::GAP;
             return (*sequence)[idx - loc.gap_acc];
@@ -323,31 +357,31 @@ namespace seqan3 {
             // b) locate upper bounding gap within block, if there is no upper bound gap_id points to end
             size_type gap_id = 0;
             size_type gap_acc = (mid) ? gap_sums[mid-1] : 0;
-            std::cout << "gap acc = "  << gap_acc << std::endl;
+            if (LOG_LEVEL_AB2) std::cout << "gap acc = "  << gap_acc << std::endl;
             // accumulate gaps as long 'pos' refers to position before or inside the current gap
             if (gap_id < gap_block_list[mid].size())
-                std::cout << "pos = " << pos << ", pos after next gap: " << gap_acc + gap_block_list[mid][gap_id].second + gap_block_list[mid][gap_id].first << std::endl;
+                if (LOG_LEVEL_AB2) std::cout << "pos = " << pos << ", pos after next gap: " << gap_acc + gap_block_list[mid][gap_id].second + gap_block_list[mid][gap_id].first << std::endl;
             while (gap_id < gap_block_list[mid].size() && pos >= gap_acc + gap_block_list[mid][gap_id].first)
             {
-                std::cout << "enter loop with gap_id = " << gap_id << " \n";
+                if (LOG_LEVEL_AB2) std::cout << "enter loop with gap_id = " << gap_id << " \n";
                 gap_acc += gap_block_list[mid][gap_id].second;
                 if (gap_id < gap_block_list[mid].size())
                 {
-                    std::cout << "pos >= gap_acc + gap_block_list[mid][gap_id].first ? " <<  (pos >= gap_acc + gap_block_list[mid][gap_id].first) << "\n";
-                    std::cout << "gap_id < gap_block_list[mid].size() && pos >= gap_acc + gap_block_list[mid][gap_id].first ? " << (gap_id < gap_block_list[mid].size() && pos >= gap_acc + gap_block_list[mid][gap_id].first) << "\n";
+                    if (LOG_LEVEL_AB2) std::cout << "pos >= gap_acc + gap_block_list[mid][gap_id].first ? " <<  (pos >= gap_acc + gap_block_list[mid][gap_id].first) << "\n";
+                    if (LOG_LEVEL_AB2) std::cout << "gap_id < gap_block_list[mid].size() && pos >= gap_acc + gap_block_list[mid][gap_id].first ? " << (gap_id < gap_block_list[mid].size() && pos >= gap_acc + gap_block_list[mid][gap_id].first) << "\n";
                 }
-                std::cout << "gap_id = " << gap_id << ", gap_acc = " << gap_acc << "\n";
+                if (LOG_LEVEL_AB2) std::cout << "gap_id = " << gap_id << ", gap_acc = " << gap_acc << "\n";
                 ++gap_id;
 
             }
-            std::cout << "gap_id after loop: " << gap_id << std::endl;
+            if (LOG_LEVEL_AB2) std::cout << "gap_id after loop: " << gap_id << std::endl;
             location.block_id = mid;
 
             location.is_gap = false;
             if (!gap_id && gap_id < gap_block_list[location.block_id].size() && pos >= gap_acc + gap_block_list[location.block_id][gap_id].first)
                 location.is_gap = true;
             // increment gap_id if pos refers to position inside gap, i.e.
-            if (gap_id && pos >= gap_acc + gap_block_list[mid][gap_id-1].first - gap_block_list[mid][gap_id-1].first && pos < gap_acc + gap_block_list[mid][gap_id-1].first)
+            if (gap_id && pos >= gap_acc + gap_block_list[mid][gap_id-1].first - gap_block_list[mid][gap_id-1].second && pos < gap_acc + gap_block_list[mid][gap_id-1].first)
             {
                 --gap_id;
                 location.is_gap = true;

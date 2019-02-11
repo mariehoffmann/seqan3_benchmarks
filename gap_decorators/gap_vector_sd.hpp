@@ -309,9 +309,11 @@ namespace seqan3 {
                 return false;
             if (data->dirty)
                 update_support_structures();
-            // number of deleted gaps
+            // number of deleted gap symbols
             size_type m_del = data->rank_1_support.rank(pos2) - data->rank_1_support.rank(pos1);
-            assert(m_del == 1);
+        //    assert(m_del == 1);
+            // check for contiguous gap
+            assert(m_del == pos2 - pos1);
             // current number of gaps
             size_type m = data->rank_1_support.rank(this->size());
             sdsl::sd_vector_builder builder{this->size() - m_del, m - m_del};

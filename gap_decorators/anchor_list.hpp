@@ -234,6 +234,9 @@ namespace seqan3 {
             std::cout << "(*it).first < pos1 ? " << ((*it).first < pos1) << std::endl;
             std::cout << "((*it).first + (*it).second) >= pos2 ? " << (((*it).first + (*it).second) >= pos2) << std::endl;
 */
+            // check for contiguous gap, anchor positions are virtual
+            assert((*it).first <= pos1 && (*it).first + (*it).second <= pos2);
+
             // case: beyond last element, which starts before pos1
             if (it == data->gap_list.end())
             {

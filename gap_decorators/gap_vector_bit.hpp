@@ -297,6 +297,9 @@ namespace seqan3 {
             if (data->dirty)
                 update_support_structures();
 
+            // check if to be deleted range corresponds to consecutive gap
+            assert(data->rank_1_support.rank(pos2) - data->rank_1_support.rank(pos1) == pos2 - pos1);
+            
             // shift suffix at it2 by the size_type m_del it2-it1
             size_type pos_del = pos2 - pos1;
             for (size_type i = pos1; i < this->size() - pos_del; ++i)

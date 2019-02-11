@@ -191,6 +191,10 @@ public:
 
         if (it == anchors.end() || (*it).first > pos1)
             it = std::prev(it);
+
+        // check for contiguous gap
+        assert((*it).first <= pos1 && (*it).first + gap_len >= pos2);
+        
         // case 1: complete gap is deleted
         if (((*it).first == pos1) && (gap_len == pos2-pos1))
         {

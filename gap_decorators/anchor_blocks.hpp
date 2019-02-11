@@ -255,7 +255,7 @@ namespace seqan3 {
             size_type gap_vpos_end = gap_vpos_start + data->gap_block_list[block_id][gap_id].second;
 
             // gap addressed by pos1 is shorter than the range to be erased
-            //assert(gap_vpos_end >= pos2);
+            assert(gap_vpos_end >= pos2);
 
             // case:  erase complete gap
             if (pos1 == gap_vpos_start && pos2 == gap_vpos_end)

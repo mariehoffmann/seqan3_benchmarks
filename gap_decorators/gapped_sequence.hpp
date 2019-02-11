@@ -49,6 +49,9 @@ struct gapped_sequence
     bool erase_gap(size_type const pos1, size_type const pos2)
     {
         assert(pos1 < pos2 && pos2 <= this->size());
+        // check for consecutive gap
+        for (size_type i = pos1; i < pos2; ++i)
+            assert(_data.at(i) == gap::GAP);
         _data.erase(_data.begin() + pos1, _data.begin() + pos2);
         return true;
     }
