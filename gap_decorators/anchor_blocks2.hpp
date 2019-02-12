@@ -22,7 +22,7 @@
 #include <sdsl/sd_vector.hpp>
 #include <sdsl/util.hpp>
 
-#define LOG_LEVEL_AB2 1
+#define LOG_LEVEL_AB2 0
 
 namespace seqan3 {
 
@@ -195,25 +195,25 @@ namespace seqan3 {
             if (LOG_LEVEL_AB2) std::cout << "h2\n";
             // get gap accumulator of previous block
             //if (LOG_LEVEL_AB2)
-            std::cout << "location for pos = " << pos << ": (" << loc.block_id << ", " << loc.gap_id << ", " << loc.gap_acc << ", " << loc.is_gap << ")\n";
+            if (LOG_LEVEL_AB2) std::cout << "location for pos = " << pos << ": (" << loc.block_id << ", " << loc.gap_id << ", " << loc.gap_acc << ", " << loc.is_gap << ")\n";
             size_type gap_acc_pred = (loc.block_id) ? gap_sums[loc.block_id-1] : 0;
-            std::cout << "num blocks in block_list = " << gap_block_list.size() << std::endl;
+            if (LOG_LEVEL_AB2) std::cout << "num blocks in block_list = " << gap_block_list.size() << std::endl;
             // i) prepend
             if (loc.gap_acc == gap_acc_pred)
             {
                 //if (LOG_LEVEL_AB2)
-                std::cout << "h2 a1\n";
+                if (LOG_LEVEL_AB2) std::cout << "h2 a1\n";
                 // what cast is happening that vector.begin() results in segmentation fault, but + 0 not?
                 gap_t gap{pos - loc.gap_acc, size};
-                std::cout << "h2 a2\n";
-                std::cout << "gap_block_list[loc.block_id].size = " << gap_block_list[loc.block_id].size() << std::endl;
+                if (LOG_LEVEL_AB2) std::cout << "h2 a2\n";
+                if (LOG_LEVEL_AB2) std::cout << "gap_block_list[loc.block_id].size = " << gap_block_list[loc.block_id].size() << std::endl;
 
                 gap_block_list[loc.block_id].insert(gap_block_list[loc.block_id].begin() + 0, gap);
 //                gap_block_list[loc.block_id].insert(gap_block_list[loc.block_id].begin(), gap_t{static_cast<size_type>(pos - loc.gap_acc), size});
                 if (LOG_LEVEL_AB2) std::cout << "h2 a3\n";
             }
             // ii) extend
-            else if (pos <= gap_block_list[loc.block_id][loc.gap_id].first + loc.gap_acc)
+            else if (loc.is_gap)  //pos <= gap_block_list[loc.block_id][loc.gap_id].first + loc.gap_acc)
             {
                 if (LOG_LEVEL_AB2) std::cout << "h2 b1\n";
                 gap_block_list[loc.block_id][loc.gap_id].second += size;
@@ -222,11 +222,9 @@ namespace seqan3 {
             // iii) insert in the middle or append new gap
             else
             {
-                //if (LOG_LEVEL_AB2)
-                std::cout << "h2 c1\n";
+                if (LOG_LEVEL_AB2) std::cout << "h2 c1\n";
                 gap_block_list[loc.block_id].insert(gap_block_list[loc.block_id].begin() + loc.gap_id, gap_t{static_cast<size_type>(pos - loc.gap_acc), size});
-                //if (LOG_LEVEL_AB2)
-                std::cout << "h2 c2\n";
+                if (LOG_LEVEL_AB2) std::cout << "h2 c2\n";
             }
             if (LOG_LEVEL_AB2) std::cout << "h3\n";
             // update block statistics
@@ -255,6 +253,7 @@ namespace seqan3 {
         // invariant: gap start remains unchanged if not deleted completely
         bool erase_gap(size_type const pos1, size_type const pos2)
         {
+            std::cout << "enter erase_gap with (pos1, pos2) = (" << pos1 << ", " << pos2 << ")\n";
             assert(pos2 <= this->size());
             // a) locate gap
             location_type location{0, 0, 0, false};
@@ -269,8 +268,8 @@ namespace seqan3 {
             assert(pos2 <= gap_block_list[location.block_id][location.gap_id].first + location.gap_acc);
 
             // to be deleted range has to be inside located gap
-            size_type vend = gap_block_list[location.block_id][location.gap_id].first + location.gap_acc + 1;
-            size_type vbeg = vend - gap_block_list[location.block_id][location.gap_id].second - 1;
+            size_type vend = gap_block_list[location.block_id][location.gap_id].first + location.gap_acc;
+            size_type vbeg = vend - gap_block_list[location.block_id][location.gap_id].second;
 
             if (LOG_LEVEL_AB2)
             {
