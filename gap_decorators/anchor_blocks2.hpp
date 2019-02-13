@@ -62,7 +62,7 @@ namespace seqan3 {
             size_type gap_acc;
             bool is_gap;
             location_type() : block_id(0), gap_id(0), gap_acc(0), is_gap(false){};
-            location_type(size_type _block_id, size_type gap_id, size_type gap_acc, bool is_gap) :
+            location_type(size_type block_id, size_type gap_id, size_type gap_acc, bool is_gap) :
                 block_id(block_id), gap_id(gap_id), gap_acc(gap_acc), is_gap(is_gap){};
         };
 
@@ -187,6 +187,7 @@ namespace seqan3 {
         bool insert_gap(size_type const pos, size_type const size=1)
         {
             if (LOG_LEVEL_AB2) std::cout << "Enter insert_gap with pos = " << pos << std::endl;
+            //std::cout << "this.size = " << this->size() << std::endl;
             assert(pos <= this->size());
             location_type loc{};
             if (LOG_LEVEL_AB2) std::cout << "h1\n";
@@ -253,7 +254,7 @@ namespace seqan3 {
         // invariant: gap start remains unchanged if not deleted completely
         bool erase_gap(size_type const pos1, size_type const pos2)
         {
-            std::cout << "enter erase_gap with (pos1, pos2) = (" << pos1 << ", " << pos2 << ")\n";
+            if (LOG_LEVEL_AB2) std::cout << "enter erase_gap with (pos1, pos2) = (" << pos1 << ", " << pos2 << ")\n";
             assert(pos2 <= this->size());
             // a) locate gap
             location_type location{0, 0, 0, false};
@@ -339,19 +340,24 @@ namespace seqan3 {
             std::function<size_type (size_type)> upper_bound = [=](size_type i) { return (i+1)*block_size + this->gap_sums[i]; };
 
             // a) binary search to identify designated block
-            size_type mid = gap_sums.size()/2;
+            size_type left = 0, right = gap_sums.size(), mid = gap_sums.size()/2;
             // number of gaps and alphabet symbols until end of this block
             size_type num_symbols = upper_bound(mid);
             // number of gaps and alphabet symbols until end of preceeding block
             size_type num_symbols_pred = (mid) ? upper_bound(mid-1) : 0;
+
             while (pos < num_symbols_pred || pos >= num_symbols)
             {
                 if (pos < num_symbols_pred && mid)
-                    mid /= 2;
-                else if (mid < gap_sums.size() - 1)
-                    mid = (mid + gap_sums.size())/2;  // TODO: check for floor for fractional numbers
+                    right = mid; //mid /= 2;
+                else //if (mid < gap_sums.size() - 1)
+                    left = mid; //mid = mid + (gap_sums.size() - mid)/2;  // TODO: check for floor for fractional numbers
+                mid = (left + right)/2;
+
                 num_symbols = upper_bound(mid);
                 num_symbols_pred = (mid) ? upper_bound(mid-1) : 0;
+                if (LOG_LEVEL_AB2) std::cout << "pos = " << pos << ", num_symbols = " << num_symbols << ", num_symbols_pred = " << num_symbols_pred << std::endl;
+
             }
             // b) locate upper bounding gap within block, if there is no upper bound gap_id points to end
             size_type gap_id = 0;

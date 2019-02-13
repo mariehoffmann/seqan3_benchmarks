@@ -74,11 +74,11 @@ size_rx = re.compile(".*?\s*(\d+)\s+maximum resident set size.*?")
 time_cmd = "{0} 1"
 
 # benchmark names used for binary and result generation
-benchmarks = [["benchmark" + str(i+1) + meth for meth in ["_GS", "_GVsd", "_GVbit", "_AL", "_AS2", "_AB"]] for i in range(3)]
+benchmarks = [["benchmark" + str(i+1) + meth for meth in ["_GS", "_GVsd", "_GVbit", "_AL", "_AS", "_AB", "_AB2"]] for i in range(3)]
 #benchmarks = [["benchmark" + str(i+1) + meth for meth in ["_GS", "_AL", "_AS2", "_AB"]] for i in range(3)]
 
 # the different approaches to represent gaps, see gapped_sequence.cpp, etc.
-gap_decorators = ['gapped_sequence', 'gap_vector_sd', 'gap_vector_bit', 'anchor_list', 'anchor_set2', 'anchor_blocks']
+gap_decorators = ['gapped_sequence', 'gap_vector_sd', 'gap_vector_bit', 'anchor_list', 'anchor_set', 'anchor_blocks', 'anchor_blocks2']
 #gap_decorators = ['gapped_sequence', 'anchor_list', 'anchor_set2', 'anchor_blocks']
 #gap_decorators = ['anchor_blocks_8', 'anchor_blocks_16', 'anchor_blocks_32', 'anchor_blocks_64', 'anchor_blocks_128', 'anchor_blocks_256']
 
@@ -86,7 +86,7 @@ gap_decorators = ['gapped_sequence', 'gap_vector_sd', 'gap_vector_bit', 'anchor_
 ignore_binary_rx = re.compile('XX')  #'.+?GV(sd|bit)_dna.+?_GAPFLAG_\d_(RUN|HEAP).+?')
 
 # info strings for the different approaches
-info = ["Gapped Sequence container<gapped>", "Gap Vector sdsl::sd_vector", "Gap Vector sdsl::bit_vector", "Anchor List", "Anchor Set2", "Anchor Block"]
+info = ["Gapped Sequence container<gapped>", "Gap Vector sdsl::sd_vector", "Gap Vector sdsl::bit_vector", "Anchor List", "Anchor Set", "Anchor Block", "Anchor Block2"]
 #info = ["Gapped Sequence container<gapped>", "Anchor List", "Anchor Set2", "Anchor Block"]
 
 # sed command for in-place text substitutions

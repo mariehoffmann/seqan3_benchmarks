@@ -18,9 +18,9 @@
 #include <seqan3/range/container/bitcompressed_vector.hpp>
 
 #include "../anchor_blocks.hpp"
+#include "../anchor_blocks2.hpp"
 #include "../anchor_list.hpp"
 #include "../anchor_set.hpp"
-#include "../anchor_set2.hpp"
 #include "../gap_vector_bit.hpp"
 #include "../gap_vector_sd.hpp"
 #include "../gapped_sequence.hpp"
@@ -88,29 +88,52 @@ void benchmark2(int csv_flag)  //std::string const & binary_name)
             sample<size_type>(&gaps, seq_len);
             if (LOG_LEVEL_<[LOG_LEVEL]>) std::cout << "sampling done" << std::endl;
 
-            <[gap_decorator]><inner_type> gap_decorator(&seq);
-
             // insert gaps
             size_type gap_acc = 0;
-            if (GAP_FLAG)
+            if (GAP_FLAG)  // estimate new ungapped sequence length
             {
-                for (size_type i = gaps.size()-1; i != 0; --i)
+                // shorten gap vector s.t. final sequence length matches seq_len
+
+                size_type letter_acc = 0;
+                size_type gap_pos = 0;
+                while (gap_pos < gaps.size() && gap_acc + letter_acc < seq_len)
+                {
+                    if (!gaps[gap_pos])
+                        ++letter_acc;
+                    else
+                    {
+                        if (letter_acc + gap_acc + gaps[gap_pos] > seq_len)
+                        {
+                            gaps[gap_pos] = seq_len - gap_acc - letter_acc;
+                            gap_acc += gaps[gap_pos];
+                            ++gap_pos;
+                            break;
+                        }
+                        else
+                            gap_acc += gaps[gap_pos];
+                    }
+                    ++gap_pos;
+                }
+                seq.resize(letter_acc); // resize ungapped sequence
+                gaps.resize(gap_pos);
+            }
+            // initialize gap_decorator with (resized) sequence
+            <[gap_decorator]><inner_type> gap_decorator(&seq);
+
+            if (GAP_FLAG) // insert gaps
+            {
+                gap_acc = 0;
+                for (size_type i = 0; i < gaps.size(); ++i)
                 {
                     if (LOG_LEVEL_<[LOG_LEVEL]>) std::cout << "gap_len = " << gaps[i] << std::endl;
-                    if (gaps[i] > 0 && gap_decorator.size()/2 < seq_len)
-                    {
-                        if (LOG_LEVEL_<[LOG_LEVEL]>) std::cout << "insert gap (" << i << ", " << gaps[i] << ") into structure ...\n";
-                        gap_decorator.insert_gap(i, gaps[i]);
-                        //if (LOG_LEVEL_<[LOG_LEVEL]>) print_sequence<<[gap_decorator]><std::vector<alphabet_type>>>(gap_decorator);
-                        gap_acc += gaps[i];
-                    }
+                    if (gaps[i]) if (LOG_LEVEL_<[LOG_LEVEL]>) std::cout << "insert gap (" << i + gap_acc << ", " << gaps[i] << ") into structure ...\n";
+                    if (gaps[i])
+                        gap_decorator.insert_gap(std::min(i + gap_acc, gap_decorator.size()), gaps[i]);
+                    gap_acc += gaps[i];
+                    //if (gap_decorator.size() >= (seq_len << 1)) break;
                 }
+                if (LOG_LEVEL_<[LOG_LEVEL]>) std::cout << "num gaps inserted: " << gap_acc << std::endl;
             }
-            if (LOG_LEVEL_<[LOG_LEVEL]>) std::cout << "num gaps inserted: " << gap_acc << std::endl;
-            // shorten container for not exceeding target sequence length
-            if (LOG_LEVEL_<[LOG_LEVEL]>) std::cout << "resize with final seq_len = " << seq_len << std::endl;
-            gap_decorator.resize(seq_len);
-            if (LOG_LEVEL_<[LOG_LEVEL]>) std::cout << "... done\n";
 
             int gap_ctr = 0;
             for (auto s : gs){ if (s == gap::GAP) ++gap_ctr;}
