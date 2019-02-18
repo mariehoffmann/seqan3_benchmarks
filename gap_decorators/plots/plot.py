@@ -14,7 +14,7 @@ RTstddev = 6    # position of runtime deviation
 HS = 7  # position of heap size
 MISSING = -1
 
-result_dir = '../results_sequoia'
+result_dir = '../results_semper'
 
 result_files_macbook = {\
 1: ['out_1_32_2_8.csv', 'out_1_16_9_9.csv', 'out_1_16_10_10.csv', 'out_1_8_11_11.csv', 'out_1_10_12_12.csv'], \
@@ -24,16 +24,16 @@ result_files_macbook = {\
 # results redwood
 #\'out_1_10_3_12.csv'], \
 result_files = {\
-1: ['out_1_32_3_15.csv', 'out_1_4_16_18.csv'],
-2: ['out_2_64_3_12.csv', 'out_2_4_13_15.csv', 'out_2_2_16_18.csv'], \
-3: ['out_3_64_3_12.csv', 'out_3_4_13_15.csv', 'out_3_2_16_18.csv']}
+1: ['out_1_32_3_20.csv'],
+2: ['out_2_32_3_18.csv'], \
+3: ['out_3_32_3_18.csv']}
 
 def plot(benchmark_idx):
     R = []  # Result matrix
     for filename in result_files[benchmark_idx]:
         with open(os.path.join(result_dir, filename), 'r') as f:
             csvreader = csv.reader(f, delimiter=',')
-            next(csvreader)
+            next(csvreader) # expect first row to be header!
             for row in csvreader:
                 R.append([int(row[0]), row[1], row[2], int(row[3]), int(row[4]), float(row[5]), float(row[6]), int(row[7])])
     for result in R:
@@ -55,15 +55,18 @@ def plot(benchmark_idx):
         for gap_flag in gap_flags:
             # row1: gap_flag=0, row2: gap_flag=1, col1: runtimes, col2: heap size
             line_hdlrs = []
+            ignore_ds = set()       # data structures to ignore due to incomplete result file
             for data_structure in data_structures:
                 print("alphabet_type = {}, gap_flag = {}, data_structure = {}".format(alphabet_type, gap_flag, data_structure))
                 R_sub =  [row for row in R if row[GF] == gap_flag and row[AL] == alphabet_type and row[DS] == data_structure]
                 data = sorted([(row[SL], row[RTavg], row[HS]) for row in R_sub], key=lambda t: t[0])
 
                 if (len(seq_lens) != len(data)):
-                    print("ERROR: missing data for alphabet_type = {}, gap_flag = {}, data_structure = {}".\
+                    print("ERROR: missing data for alphabet_type = {}, gap_flag = {}, data_structure = {}. Will not be plotted.".\
                     format(alphabet_type, gap_flag, data_structure))
+                    ignore_ds.add(data_structure)
                     sys.exit(-1)
+                    #continue
 
                 ax = plt.subplot(len(gap_flags), 2, plot_idx)
                 print(seq_lens)
@@ -91,14 +94,15 @@ def plot(benchmark_idx):
 
                 plt.subplots_adjust(hspace=0.4)
                 # Place a legend to the right of this smaller subplot.
-            if gap_flag == 0:
-                plt.legend(loc=2) #bbox_to_anchor=(1.05, 1), loc=0, borderaxespad=0.)
+                #if plot_idx == 1 and gap_flag == 0:
+                #    plt.legend(loc=0) #bbox_to_anchor=(1.05, 1), loc=0, borderaxespad=0.)
 
-
-            #plt.legend(handles=line_hdlrs)
+            ignore_ds.clear()
+            plt.legend(handles=line_hdlrs)
             plot_idx += 1
             #break
         plt.show()
+        line_hdlrs = []
         #sys.exit()
 
 if __name__ == "__main__":
