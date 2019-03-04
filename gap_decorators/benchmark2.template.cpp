@@ -46,7 +46,6 @@ void benchmark2(int csv_flag)  //std::string const & binary_name)
     using time_type = long double;
 
     // setup
-    if (LOG_LEVEL_<[LOG_LEVEL]>) std::cout << "set up seq_length ...\n";
     std::vector<size_type> seq_lengths;
     for (short unsigned int p = POW1-1; p < POW2; ++p) seq_lengths.push_back(1 << (p+1));
     // container for gap-free sequence either std::vector<alphabet_type> or seqan3::bitcompressed_vector<alphabet_type>
@@ -68,25 +67,17 @@ void benchmark2(int csv_flag)  //std::string const & binary_name)
     for (auto seq_len : seq_lengths)
     {
         // reset durations
-        if (LOG_LEVEL_<[LOG_LEVEL]>) std::cout << "reset durations ...\n";
         std::fill(durations.begin(),durations.end(), 0);
-        if (LOG_LEVEL_<[LOG_LEVEL]>) std::cout << "done, continue benchmark with seq_len = " << seq_len << std::endl;
         for (long unsigned int round = 0; round < REPEAT; ++round)
         {
-            if (LOG_LEVEL_<[LOG_LEVEL]>) std::cout << "start resizing ...\n";
             seq.resize(seq_len);
-            if (LOG_LEVEL_<[LOG_LEVEL]>) std::cout << "done resizing.\n";
 
             //fill vector with A
-            if (LOG_LEVEL_<[LOG_LEVEL]>) std::cout << "start filling sequence ...\n";
             std::fill(seq.begin(), seq.end(), <[letter_A]>);
-            if (LOG_LEVEL_<[LOG_LEVEL]>) std::cout << "done filling.\n";
 
-            if (LOG_LEVEL_<[LOG_LEVEL]>) std::cout << "init seq length is : " << seq.size() << std::endl;
             // sample gap lengths
             gaps.resize(seq_len);
             sample<size_type>(&gaps, seq_len);
-            if (LOG_LEVEL_<[LOG_LEVEL]>) std::cout << "sampling done" << std::endl;
 
             // insert gaps
             size_type gap_acc = 0;
@@ -125,20 +116,15 @@ void benchmark2(int csv_flag)  //std::string const & binary_name)
                 gap_acc = 0;
                 for (size_type i = 0; i < gaps.size(); ++i)
                 {
-                    if (LOG_LEVEL_<[LOG_LEVEL]>) std::cout << "gap_len = " << gaps[i] << std::endl;
-                    if (gaps[i]) if (LOG_LEVEL_<[LOG_LEVEL]>) std::cout << "insert gap (" << i + gap_acc << ", " << gaps[i] << ") into structure ...\n";
                     if (gaps[i])
                         gap_decorator.insert_gap(std::min(i + gap_acc, gap_decorator.size()), gaps[i]);
                     gap_acc += gaps[i];
                     //if (gap_decorator.size() >= (seq_len << 1)) break;
                 }
-                if (LOG_LEVEL_<[LOG_LEVEL]>) std::cout << "num gaps inserted: " << gap_acc << std::endl;
             }
 
             int gap_ctr = 0;
             for (auto s : gs){ if (s == gap::GAP) ++gap_ctr;}
-            if (LOG_LEVEL_<[LOG_LEVEL]>) std::cout << "gap proportion: " << (float)gap_ctr/(float)seq_len << std::endl;
-            //if (LOG_LEVEL_<[LOG_LEVEL]>) {std::cout <<"aligned sequence = "; print_sequence<<[gap_decorator]>>(gap_decorator);}
 
             // perform reading at random positions R times
             std::mt19937 generator(SEED); //Standard mersenne_twister_engine seeded with rd()
@@ -166,11 +152,9 @@ void benchmark2(int csv_flag)  //std::string const & binary_name)
             //std::cerr << aux << std::endl;
         } // N experiment repetitions
 
-        if (LOG_LEVEL_<[LOG_LEVEL]>) std::cout << seq_len << " done\n";
         unsigned int quantile = 99;
         avg_duration = avg<REPEAT*NUM_OP>(&durations, quantile);
         stddev_duration = stddev<REPEAT*NUM_OP>(&durations, quantile);
-        if (LOG_LEVEL_<[LOG_LEVEL]>) std::cout << "avg duration time of reading of approach: " << avg_duration << "\u00B1" << stddev_duration << " ns\n";
         results.push_back(stats<time_type, size_type>{seq_len, NUM_OP*REPEAT, avg_duration, stddev_duration});
 
     } // seq_len
